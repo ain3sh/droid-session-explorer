@@ -1,9 +1,14 @@
 {
-  "name": "dsx",
+  "name": "droid-session-explorer",
   "version": "0.1.0",
-  "description": "Droid Session Explorer: CLI + TUI for searching and analyzing Factory Droid sessions",
+  "description": "dsx: CLI + TUI for searching and analyzing Factory Droid sessions",
   "type": "module",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ain3sh/droid-session-explorer.git"
+  },
   "bin": {
     "dsx": "./dist/index.js"
   },
