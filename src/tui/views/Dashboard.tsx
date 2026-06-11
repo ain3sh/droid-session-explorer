@@ -81,7 +81,15 @@ export function Dashboard() {
 
 function Kpi(props: { label: string; value: string; color: string }) {
   return (
-    <box border borderStyle="single" borderColor={T.border} paddingX={1} flexDirection="column">
+    <box
+      border
+      borderStyle="single"
+      borderColor={T.border}
+      paddingX={1}
+      flexDirection="column"
+      flexShrink={0}
+      height={4}
+    >
       <text>
         <span style={{ fg: T.dim }}>{props.label}</span>
       </text>

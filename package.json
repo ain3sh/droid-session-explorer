@@ -15,6 +15,7 @@
   "scripts": {
     "dev": "bun --preload @opentui/solid/preload run src/index.ts",
     "build": "bun run build.ts",
+    "compile": "bun scripts/compile.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

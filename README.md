@@ -16,6 +16,17 @@ A fast CLI + TUI for searching, analyzing, and navigating your local
 
 ## Install
 
+Single self-contained binary (no bun required), linux/macOS, x64/arm64:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ain3sh/droid-session-explorer/main/install.sh | bash
+```
+
+Pin a version with `DSX_VERSION=v0.1.0`, change destination with
+`DSX_INSTALL_DIR` (default `~/.local/bin`).
+
+From source instead:
+
 ```bash
 bun install
 bun run build
