@@ -10,6 +10,10 @@ export interface DsxConfig {
   dbPath: string
   /** Max bytes of a single content block stored for FTS (full content always read from source) */
   maxIndexedBlockBytes: number
+  /** Model used for `dsx insights --deep` sub-droid runs */
+  insightsModel: string
+  /** Reasoning effort for the insights sub-droid */
+  insightsReasoning: string
 }
 
 export function loadConfig(): DsxConfig {
@@ -27,5 +31,7 @@ export function loadConfig(): DsxConfig {
     historyPath: join(home, ".factory", "history.json"),
     dbPath: process.env.DSX_DB_PATH ?? join(cacheDir, "index.db"),
     maxIndexedBlockBytes: 8192,
+    insightsModel: process.env.DSX_INSIGHTS_MODEL ?? "kimi-k2.6",
+    insightsReasoning: process.env.DSX_INSIGHTS_REASONING ?? "low",
   }
 }

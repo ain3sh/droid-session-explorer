@@ -168,17 +168,40 @@ export function registerStatsCommands(program: Command, ctx: AppContext): void {
     .option("--since <when>", "window start")
     .option("--kind <kind>", "only one signal kind")
     .option("-n, --limit <n>", "max findings", Number, 20)
+    .option("--deep", "LLM-written brief via droid exec (streams to stdout, cached for the TUI)")
+    .option("-m, --model <id>", "model for --deep (default: $DSX_INSIGHTS_MODEL or kimi-k2.6)")
+    .option("--reasoning <effort>", "reasoning effort for --deep (default: low)")
     .option("--json", "JSON output")
     .action(async (opts) => {
       await ensureFresh(ctx, !program.opts().refresh)
+      const since = opts.since ? parseWhen(opts.since) : undefined
+
+      if (opts.deep) {
+        const { generateDeepInsights } = await import("../../exec/deepInsights")
+        try {
+          const result = await generateDeepInsights(ctx, {
+            model: opts.model,
+            reasoningEffort: opts.reasoning,
+            project: opts.project,
+            since,
+            onDelta: opts.json ? undefined : (t) => process.stdout.write(t),
+            onStatus: (s) => console.error(pc.dim(`dsx: ${s}`)),
+          })
+          if (opts.json) console.log(JSON.stringify(result, null, 2))
+          else process.stdout.write("\n")
+        } catch (e) {
+          fail(e instanceof Error ? e.message : String(e))
+        }
+        return
+      }
+
       const report = insightsReport(ctx.db, {
         project: opts.project,
-        since: opts.since ? parseWhen(opts.since) : undefined,
+        since,
+        kind: opts.kind as SignalKind | undefined,
         limit: 500,
       })
-      let insights = report.insights
-      if (opts.kind) insights = insights.filter((i) => i.kind === opts.kind)
-      insights = insights.slice(0, opts.limit)
+      const insights = report.insights.slice(0, opts.limit)
 
       output(opts.json, { ...report, insights }, () => {
         const lines: string[] = []

@@ -40,3 +40,23 @@ User comment: push as powerfully as you'd like, I'm excited to see where your in
 **Type**: decision
 **Context**: packages/common/src/session/jsonl/types.ts defines DroidSessionEvent union; matches the implemented parser. Extra block types exist (image, redacted_thinking, document) and DroidMessageEvent.tokens exists but is never populated in local files (verified by rg over all sessions).
 **Resolution**: Parser skips unknown block types; per-message tokens not indexed. Daily token attribution stays pro-rated from session totals by assistant-message activity.
+
+## 2026-06-12T06:40Z — Factory stream-jsonrpc envelope is not bare JSON-RPC 2.0
+**Type**: surprise
+**Context**: `droid exec --input-format stream-jsonrpc` rejects standard JSON-RPC requests with `-32700 Invalid JSON-RPC message` (response has `id: null`). The Factory envelope additionally requires `type: "request" | "response" | "notification"`, string `id`s (not numbers), and the legacy literal `factoryApiVersion: "1.0.0"` (see Factory-AI/droid-sdk-typescript src/protocol/json-rpc.ts). Model/reasoning/autonomy go in `droid.initialize_session` params (`modelId`, `reasoningEffort`, `autonomyLevel`, `interactionMode`), not CLI flags. Turn completion = `droid_working_state_changed` to `idle` after at least one non-idle state.
+**Resolution**: src/exec/droid.ts sends the full envelope, answers `droid.request_permission` with `cancel` and `droid.ask_user` with `cancelled: true` (unattended runs), and gates turn-resolution on the busy→idle transition.
+
+## 2026-06-12T06:45Z — droid exec sessions auto-tag `exec`
+**Type**: decision
+**Context**: Verified in the index: all stream-jsonrpc/exec-spawned sessions carry the `exec` tag (often plus `subagent`), so the indexer's `is_exec` flag already excludes dsx's own deep-insights runs from list/insights reports. No recursion guard needed.
+**Resolution**: Deep-insights runs add a `dsx-insights` tag on top for traceability; cache lives in the meta table under `deep_insights`.
+
+## 2026-06-12T06:50Z — expensive signal was relative but incommensurable
+**Type**: decision
+**Context**: The old `expensive` severity (`credits/median/100`) produced values in the thousands while every other signal sat in [0,1]; after the global severity sort, the ~5% p95+ sessions blanketed the findings list. The relativity (p95 of the user's own sessions) was never the bug.
+**Resolution**: All severities clamped to [0,1]; expensive = log10(credits/median)/3 over positive-credit sessions with threshold max(p95, 3x median) and a 20-session minimum sample; details cite median-ratio + percentile; without --kind each kind caps at 10 findings.
+
+## 2026-06-12T07:20Z — Input focus hand-off leaks the triggering keypress both ways
+**Type**: surprise
+**Context**: Same root cause as the deferred view switches: focusing an `<input>` synchronously inside useKeyboard delivers the triggering key into the input ("pvfs"), and unfocusing synchronously on enter/escape delivers the closing key to the re-focused `<select>` behind it (opened a transcript) or the global handler (escape navigated back).
+**Resolution**: Insights and Sessions defer both the focus grant and the focus release with setTimeout(0); inputActive is cleared inside the same deferred callback so the global handler still sees it as active during the closing event.

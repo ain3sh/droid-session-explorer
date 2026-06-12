@@ -37,15 +37,19 @@ export function Sessions() {
   useKeyboard((key) => {
     if (editing()) {
       if (key.name === "escape" || key.name === "return") {
-        setEditing(false)
-        app.setInputActive(false)
+        // Unfocus next tick so the closing keypress is not also delivered to
+        // the re-focused list behind the input or the global key handler.
+        setTimeout(() => {
+          setEditing(false)
+          app.setInputActive(false)
+        }, 0)
       }
       return
     }
     const seq = key.sequence ?? key.name
     if (seq === "/") {
-      setEditing(true)
       app.setInputActive(true)
+      setTimeout(() => setEditing(true), 0)
       return
     }
     const current = sessions()[selectedIndex()]

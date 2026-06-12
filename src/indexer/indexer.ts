@@ -42,10 +42,15 @@ interface SessionCounters {
   ended: number
 }
 
+export type IndexerConfig = Pick<
+  DsxConfig,
+  "sessionsRoot" | "historyPath" | "maxIndexedBlockBytes"
+>
+
 export class Indexer {
   constructor(
     private db: Database,
-    private config: DsxConfig,
+    private config: IndexerConfig,
   ) {}
 
   /** Incrementally bring the index up to date with disk. */

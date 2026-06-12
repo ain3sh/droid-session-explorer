@@ -27,7 +27,6 @@ beforeEach(async () => {
   indexer = new Indexer(db, {
     sessionsRoot: fixture.root,
     historyPath: "/nonexistent/history.json",
-    dbPath: ":memory:",
     maxIndexedBlockBytes: 8192,
   })
   await indexer.refresh()

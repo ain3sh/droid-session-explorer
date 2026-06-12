@@ -162,6 +162,8 @@ function Footer() {
         return "j/k scroll  [/] page  t thinking  o tool output  y yank id  r resume+quit  esc back"
       case "tree":
         return "enter open transcript  esc back  q quit"
+      case "insights":
+        return "g generate brief  d findings/brief  w window  e effort  m model  p project  enter open  esc back"
       default:
         return "1-5 views  enter select  esc back  q quit"
     }

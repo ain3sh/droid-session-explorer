@@ -41,8 +41,20 @@ dsx resume 22bc0eed               # prints `cd ... && droid --resume <id>`
 # analytics
 dsx stats --json                            # overview totals
 dsx stats --by day --since 30d --json       # also: model|project|tool|hour
-dsx insights --since 30d --json             # error-dense, retry loops, abandoned, cost outliers
+dsx insights --since 30d --json             # heuristic findings, severity in [0,1]
+dsx insights --kind expensive --json        # one kind, uncapped (without --kind, each
+                                            # kind is capped at 10 findings)
+dsx insights --deep                         # LLM-written brief via a droid exec sub-agent
+                                            # (configurable: -m/--reasoning, $DSX_INSIGHTS_MODEL)
+
+# delegate a question to a sub-droid that mines the index itself
+dsx ask "when did I last touch the auth flow, and how?"
 ```
+
+Insight kinds for `--kind`: `error_dense`, `retry_loops`, `interrupted`,
+`abandoned`, `compaction_churn`, `expensive`, `marathon`. `expensive` is
+relative to this user's own sessions: flagged above max(p95, 3x median) of
+credit-bearing sessions, detail cites the median ratio and percentile.
 
 ## Workflow guidance
 
@@ -52,6 +64,16 @@ dsx insights --since 30d --json             # error-dense, retry loops, abandone
 4. For "what did this cost / how much did I use": `dsx stats` with `--by` and `--since`.
 5. For "what went wrong lately": `dsx insights`.
 6. Subagent and droid-exec sessions are hidden from `dsx list` by default; add `--all` to include them.
+
+## Interpreting usage numbers
+
+- Fork sessions inherit the parent's cumulative token/credit usage, so a deep
+  fork chain shows inflated per-session totals. Use `dsx tree <id>` to find the
+  lineage root before attributing cost; the chain's true cost is roughly the
+  deepest fork's total, not the sum across the chain.
+- Subagent and droid-exec sessions (including dsx's own `--deep`/`ask` runs,
+  tagged `exec` + `dsx-insights`) are excluded from stats and insights and
+  hidden from `dsx list` unless you pass `--all`.
 
 ## Notes
 

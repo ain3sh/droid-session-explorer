@@ -45,6 +45,10 @@ latest release.
    `ain3sh/droid-session-explorer`; switch with `gh auth switch` if the active
    account lacks access (and switch back afterwards).
 
+   If (and only if) the user you are working with is Ainesh (the project is
+   OSS, so check): wrap every push as
+   `gh auth switch --user ain3sh` → push → `gh auth switch --user factory-ain3sh`.
+
 5. Watch the run and confirm all four assets land:
 
    ```bash
@@ -85,3 +89,14 @@ latest release.
 - Errors to stderr, data to stdout.
 - Implementation decisions and surprises are logged in
   `.agents/specs/*.notes.md`; append there when you hit something non-obvious.
+- LLM-powered features (`dsx ask`, `dsx insights --deep`) go through
+  `src/exec/`: `droid.ts` drives `droid exec` over stream-jsonrpc, sub-droids
+  get the embedded cheatsheet from `cheatsheet.ts` (keep it in sync with
+  `skills/dsx/SKILL.md`). Spawned runs are auto-tagged `exec` by droid, so
+  they stay out of dsx's own reports.
+
+## Next ideas
+
+- TUI-native chat pane ("ask your sessions" inside the dashboard): build on
+  the official droid TypeScript SDK rather than our raw stream-jsonrpc client,
+  but wait until the in-flight SDK rewrite lands.

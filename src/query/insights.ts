@@ -13,6 +13,7 @@ export type SignalKind =
 
 export interface Insight {
   kind: SignalKind
+  /** Comparable across kinds: always in [0, 1]. */
   severity: number
   session: SessionSummary
   detail: string
@@ -25,16 +26,35 @@ export interface InsightsReport {
     toolErrorRate: number
     interruptionRate: number
     abandonRate: number
+    /** Median credits across sessions that recorded any credits. */
     medianCredits: number
   }
   insights: Insight[]
 }
 
+export interface InsightsFilters extends StatsFilters {
+  limit?: number
+  kind?: SignalKind
+}
+
 const MIN_TOOL_CALLS = 10
+/** Minimum credit-bearing sessions before cost percentiles mean anything. */
+const MIN_COST_SAMPLE = 20
+/** Without a kind filter, no single signal kind may claim more than this many findings. */
+const MAX_PER_KIND = 10
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
+
+/** Nearest-rank quantile over an ascending-sorted array; 0 when empty. */
+function quantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return 0
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * q))
+  return sorted[idx]!
+}
 
 export function insightsReport(
   db: Database,
-  filters: StatsFilters & { limit?: number } = {},
+  filters: InsightsFilters = {},
 ): InsightsReport {
   const where: string[] = ["is_subagent = 0", "is_exec = 0"]
   const params: (string | number)[] = []
@@ -58,11 +78,11 @@ export function insightsReport(
   let totalErrors = 0
   let interrupted = 0
   let abandoned = 0
-  const credits: number[] = []
+  const positiveCredits: number[] = []
 
   for (const row of rows) {
     const s = toSummary(row)
-    credits.push(s.usage.credits)
+    if (s.usage.credits > 0) positiveCredits.push(s.usage.credits)
     totalCalls += s.counts.toolCalls
     totalErrors += s.counts.toolErrors
     if (s.counts.cancels > 0) interrupted++
@@ -72,7 +92,7 @@ export function insightsReport(
       if (errRate >= 0.15) {
         insights.push({
           kind: "error_dense",
-          severity: errRate,
+          severity: clamp01(errRate),
           session: s,
           detail: `${s.counts.toolErrors}/${s.counts.toolCalls} tool calls failed (${Math.round(errRate * 100)}%)`,
         })
@@ -82,7 +102,7 @@ export function insightsReport(
     if (s.counts.retryLoops >= 3) {
       insights.push({
         kind: "retry_loops",
-        severity: s.counts.retryLoops / Math.max(1, s.counts.toolCalls),
+        severity: clamp01(s.counts.retryLoops / Math.max(1, s.counts.toolCalls)),
         session: s,
         detail: `${s.counts.retryLoops} consecutive identical tool calls`,
       })
@@ -91,7 +111,7 @@ export function insightsReport(
     if (s.counts.cancels >= 3) {
       insights.push({
         kind: "interrupted",
-        severity: s.counts.cancels / Math.max(1, s.counts.userMessages),
+        severity: clamp01(s.counts.cancels / Math.max(1, s.counts.userMessages)),
         session: s,
         detail: `${s.counts.cancels} user interruptions/cancellations`,
       })
@@ -115,38 +135,60 @@ export function insightsReport(
     if (s.counts.compactions >= 4) {
       insights.push({
         kind: "compaction_churn",
-        severity: s.counts.compactions / Math.max(20, s.counts.messages / 10),
+        severity: clamp01(s.counts.compactions / Math.max(20, s.counts.messages / 10)),
         session: s,
         detail: `${s.counts.compactions} compactions over ${s.counts.messages} messages`,
       })
     }
-  }
 
-  const sortedCredits = [...credits].sort((a, b) => a - b)
-  const medianCredits = sortedCredits[Math.floor(sortedCredits.length / 2)] ?? 0
-  const p95 = sortedCredits[Math.floor(sortedCredits.length * 0.95)] ?? Infinity
-
-  for (const row of rows) {
-    const s = toSummary(row)
-    if (s.usage.credits > p95 && s.usage.credits > 0) {
-      insights.push({
-        kind: "expensive",
-        severity: medianCredits > 0 ? s.usage.credits / medianCredits / 100 : 1,
-        session: s,
-        detail: `${s.usage.credits.toLocaleString()} credits (p95+ outlier)`,
-      })
-    }
     if (s.activeTimeMs > 4 * 3600_000) {
       insights.push({
         kind: "marathon",
-        severity: s.activeTimeMs / (24 * 3600_000),
+        severity: clamp01(s.activeTimeMs / (24 * 3600_000)),
         session: s,
         detail: `${(s.activeTimeMs / 3600_000).toFixed(1)}h of assistant active time`,
       })
     }
   }
 
+  // Cost outliers, measured against this user's own credit distribution.
+  // Heavy-tailed by nature, so the bar is the stricter of p95 and 3x median,
+  // and severity grows with the log of the median ratio (10x median = 0.33,
+  // 1000x = 1.0) so cost can be ranked fairly against the other signals.
+  positiveCredits.sort((a, b) => a - b)
+  const medianCredits = quantile(positiveCredits, 0.5)
+  if (positiveCredits.length >= MIN_COST_SAMPLE && medianCredits > 0) {
+    const threshold = Math.max(quantile(positiveCredits, 0.95), 3 * medianCredits)
+    for (const row of rows) {
+      const s = toSummary(row)
+      if (s.usage.credits < threshold || s.usage.credits <= 0) continue
+      const ratio = s.usage.credits / medianCredits
+      const above = positiveCredits.filter((c) => c >= s.usage.credits).length
+      const topPct = (above / positiveCredits.length) * 100
+      insights.push({
+        kind: "expensive",
+        severity: clamp01(Math.log10(Math.max(1, ratio)) / 3),
+        session: s,
+        detail: `${s.usage.credits.toLocaleString()} credits, ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}x your median session (top ${topPct < 1 ? topPct.toFixed(1) : Math.round(topPct)}%)`,
+      })
+    }
+  }
+
   insights.sort((a, b) => b.severity - a.severity)
+
+  let selected: Insight[]
+  if (filters.kind) {
+    selected = insights.filter((i) => i.kind === filters.kind)
+  } else {
+    const perKind = new Map<SignalKind, number>()
+    selected = insights.filter((i) => {
+      const n = perKind.get(i.kind) ?? 0
+      if (n >= MAX_PER_KIND) return false
+      perKind.set(i.kind, n + 1)
+      return true
+    })
+  }
+
   return {
     generatedAt: Date.now(),
     overall: {
@@ -156,6 +198,6 @@ export function insightsReport(
       abandonRate: rows.length ? abandoned / rows.length : 0,
       medianCredits,
     },
-    insights: insights.slice(0, filters.limit ?? 50),
+    insights: selected.slice(0, filters.limit ?? 50),
   }
 }
