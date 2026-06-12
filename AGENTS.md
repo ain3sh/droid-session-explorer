@@ -86,6 +86,12 @@ latest release.
 - All CLI query commands support `--json` with stable shapes; treat those
   shapes as a public contract (the companion skill in `skills/dsx/` documents
   them).
+- When core CLI functionality changes (commands, flags, JSON shapes, output
+  semantics; TUI-only changes are exempt), update the skill in the same
+  change: `skills/dsx/SKILL.md` for the quick reference and
+  `skills/dsx/references/*.md` for the full surface. The reference files are
+  also embedded as the sub-droid cheatsheet, so a stale skill misleads both
+  humans and the `ask`/`--deep` sub-agents.
 - Errors to stderr, data to stdout.
 - Implementation decisions and surprises are logged in
   `.agents/specs/*.notes.md`; append there when you hit something non-obvious.
