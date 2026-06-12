@@ -90,9 +90,10 @@ latest release.
 - Implementation decisions and surprises are logged in
   `.agents/specs/*.notes.md`; append there when you hit something non-obvious.
 - LLM-powered features (`dsx ask`, `dsx insights --deep`) go through
-  `src/exec/`: `droid.ts` drives `droid exec` over stream-jsonrpc, sub-droids
-  get the embedded cheatsheet from `cheatsheet.ts` (keep it in sync with
-  `skills/dsx/SKILL.md`). Spawned runs are auto-tagged `exec` by droid, so
+  `src/exec/`: `droid.ts` drives `droid exec` over stream-jsonrpc, and
+  `cheatsheet.ts` embeds `skills/dsx/references/*.md` as text imports (single
+  source of truth; the `.md` text loader is configured in both build.ts and
+  scripts/compile.ts). Spawned runs are tagged `exec` + `dsx-insights` so
   they stay out of dsx's own reports.
 
 ## Next ideas
