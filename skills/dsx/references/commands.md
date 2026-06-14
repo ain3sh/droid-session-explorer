@@ -42,13 +42,20 @@ dsx search "<text>" --history         # the user's typed prompt history
 ```bash
 dsx show <id> [--json]                # metadata, usage, tool histogram, final todos
 dsx export <id> [--no-tools] [--no-thinking] [-f md|html] [-o <file>]
-dsx path <id> [--transcript] [--json] # JSONL= and SETTINGS= file paths
+dsx path <id> [--transcript] [--all] [--json] # JSONL= and SETTINGS= file paths
 dsx tree <id> [--json]                # fork + subagent lineage
 dsx resume <id> [--run]               # print (or exec) `cd ... && droid --resume <id>`
 ```
 
 The exporter reads source JSONL, so content is full-fidelity even though the
 index caps indexed block size.
+
+`dsx path <id> --all` bypasses the index and scans the sessions root on disk,
+grouping every match into complete pairs, transcript-only, and settings-only
+files. Use it to debug orphans or duplicate ids the index can't represent (it
+accepts an id prefix and never fails on a miss). JSON shape:
+`{ ref, root, pairs:[{id,transcript,settings}], transcriptOnly:[{id,transcript}],
+settingsOnly:[{id,settings}] }`.
 
 ## analytics
 
@@ -74,4 +81,11 @@ dsx ask "<question>" [-m <model>] [--cwd <path>]
 ```bash
 dsx index [--rebuild] [--json]                  # force refresh / full re-ingest
 dsx migrate-path <oldPrefix> <newPrefix> [--apply]  # after moving a project dir
+         [--cwd-only] [--dirs-only] [--rename-conflicts]
+         [--backup-dir <dir>] [--root <dir>]
 ```
+
+- `migrate-path` is a dry run unless `--apply` (which backs up first). `--root`
+  overrides the session root it operates on (otherwise the configured root /
+  `DROID_SESSION_ROOT`); `--cwd-only`/`--dirs-only` scope the rewrite to JSONL
+  `cwd` fields or encoded session dirs respectively.

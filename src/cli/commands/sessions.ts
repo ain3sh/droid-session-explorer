@@ -1,6 +1,7 @@
 import type { Command } from "commander"
 import pc from "picocolors"
 import type { AppContext } from "../../context"
+import { scanSessions } from "../../indexer/scanner"
 import { listSessions, resolveSession, sessionToolStats, SessionResolutionError } from "../../query/sessions"
 import { lineage, type TreeNode } from "../../query/tree"
 import {
@@ -182,7 +183,12 @@ export function registerSessionCommands(program: Command, ctx: AppContext): void
     .description("print transcript and settings paths")
     .option("--json", "JSON output")
     .option("--transcript", "print only the transcript path")
+    .option("--all", "scan disk for every matching transcript/settings file (orphans, duplicates)")
     .action(async (ref: string, opts) => {
+      if (opts.all) {
+        printDiskMatches(ctx, ref, Boolean(opts.json))
+        return
+      }
       await ensureFresh(ctx, !program.opts().refresh)
       const s = resolveOrFail(ctx, ref)
       if (opts.transcript) {
@@ -227,6 +233,60 @@ export function registerSessionCommands(program: Command, ctx: AppContext): void
       const tree = lineage(ctx.db, s.id)
       output(opts.json, tree, () => renderTree(tree, s.id))
     })
+}
+
+interface DiskMatches {
+  ref: string
+  root: string
+  pairs: Array<{ id: string; transcript: string; settings: string }>
+  transcriptOnly: Array<{ id: string; transcript: string }>
+  settingsOnly: Array<{ id: string; settings: string }>
+}
+
+/** Raw on-disk scan, bypassing the index, to surface orphans and duplicates. */
+function collectDiskMatches(root: string, ref: string): DiskMatches {
+  const groups = new Map<string, { id: string; transcript?: string; settings?: string }>()
+  for (const f of scanSessions(root)) {
+    if (f.sessionId !== ref && !f.sessionId.startsWith(ref)) continue
+    const key = `${f.dirSlug}\u0000${f.sessionId}`
+    const g = groups.get(key) ?? { id: f.sessionId }
+    if (f.kind === "transcript") g.transcript = f.path
+    else g.settings = f.path
+    groups.set(key, g)
+  }
+  const result: DiskMatches = { ref, root, pairs: [], transcriptOnly: [], settingsOnly: [] }
+  for (const g of [...groups.values()].sort((a, b) => a.id.localeCompare(b.id))) {
+    if (g.transcript && g.settings) result.pairs.push({ id: g.id, transcript: g.transcript, settings: g.settings })
+    else if (g.transcript) result.transcriptOnly.push({ id: g.id, transcript: g.transcript })
+    else if (g.settings) result.settingsOnly.push({ id: g.id, settings: g.settings })
+  }
+  return result
+}
+
+function printDiskMatches(ctx: AppContext, ref: string, json: boolean): void {
+  const m = collectDiskMatches(ctx.config.sessionsRoot, ref)
+  output(json, m, () => {
+    const lines = [`${pc.dim("session")}  ${ref}`, `${pc.dim("root")}     ${m.root}`]
+    if (!m.pairs.length && !m.transcriptOnly.length && !m.settingsOnly.length) {
+      lines.push("", pc.dim("no matching files on disk"))
+      return lines.join("\n")
+    }
+    if (m.pairs.length) {
+      lines.push("", pc.bold("complete pairs:"))
+      m.pairs.forEach((p, i) => {
+        lines.push(`  [${i + 1}] JSONL=${p.transcript}`, `      SETTINGS=${p.settings}`)
+      })
+    }
+    if (m.transcriptOnly.length) {
+      lines.push("", pc.bold("transcript-only:"))
+      for (const t of m.transcriptOnly) lines.push(`  - ${t.transcript}`)
+    }
+    if (m.settingsOnly.length) {
+      lines.push("", pc.bold("settings-only:"))
+      for (const s of m.settingsOnly) lines.push(`  - ${s.settings}`)
+    }
+    return lines.join("\n")
+  })
 }
 
 function shortModel(model: string | null): string {

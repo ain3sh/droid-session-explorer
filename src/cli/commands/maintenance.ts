@@ -60,6 +60,7 @@ export function registerMaintenanceCommands(program: Command, ctx: AppContext): 
     .option("--dirs-only", "only rename encoded session directories")
     .option("--rename-conflicts", "keep both copies when target files conflict")
     .option("--backup-dir <dir>", "backup parent directory")
+    .option("--root <dir>", "session root to operate on (default: configured sessions root)")
     .action(async (oldPrefixRaw: string, newPrefixRaw: string, opts) => {
       if (opts.cwdOnly && opts.dirsOnly) fail("--cwd-only and --dirs-only are mutually exclusive")
       const oldPrefix = normalizePrefix(oldPrefixRaw)
@@ -67,7 +68,7 @@ export function registerMaintenanceCommands(program: Command, ctx: AppContext): 
       if (oldPrefix === newPrefix) fail("old and new prefix resolve to the same path")
       if (oldPrefix === "/") fail("refusing to use / as a migration prefix")
 
-      const root = ctx.config.sessionsRoot
+      const root = opts.root ? resolveRoot(opts.root) : ctx.config.sessionsRoot
       const oldSlug = oldPrefix.replaceAll("/", "-")
       const newSlug = newPrefix.replaceAll("/", "-")
       const doCwd = !opts.dirsOnly
@@ -130,6 +131,11 @@ function normalizePrefix(p: string): string {
   if (!isAbsolute(p)) fail("prefixes must be absolute paths")
   const r = resolve(p)
   return r === "/" ? "/" : r.replace(/\/+$/, "")
+}
+
+function resolveRoot(p: string): string {
+  if (p.startsWith("~")) p = p.replace(/^~/, process.env.HOME ?? "~")
+  return resolve(p)
 }
 
 const hasPrefix = (path: string, prefix: string) =>

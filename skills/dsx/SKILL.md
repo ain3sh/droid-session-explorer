@@ -40,6 +40,7 @@ dsx search "race condition" --type thinking --json     # FTS5 over transcripts
 dsx search "cache.*miss" --regex --json                # ripgrep over raw JSONL
 dsx search "refactor" --history --json                 # user's typed prompts
 dsx show 22bc0eed --json                               # summary, usage, tool stats
+dsx path 22bc0eed                                      # JSONL= / SETTINGS= paths (add --all to scan disk for orphans)
 dsx export 22bc0eed --no-tools                         # markdown transcript
 dsx tree 22bc0eed                                      # fork + subagent lineage
 dsx resume 22bc0eed                                    # prints the resume command
