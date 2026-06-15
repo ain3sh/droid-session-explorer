@@ -1,6 +1,7 @@
 import {
   contentBlocks,
   parseTimestamp,
+  todoStateText,
   toolResultText,
   type SessionRecord,
 } from "../indexer/records"
@@ -110,8 +111,9 @@ export async function loadTranscript(path: string): Promise<Transcript> {
         break
       }
       case "todo_state":
-        if (record.todos?.todos) {
-          transcript.entries.push({ kind: "todo", ts, text: record.todos.todos })
+        {
+          const todos = todoStateText(record.todos?.todos)
+          if (todos) transcript.entries.push({ kind: "todo", ts, text: todos })
         }
         break
       case "compaction_state":

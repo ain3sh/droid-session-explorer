@@ -63,8 +63,14 @@ export interface TodoStateRecord {
   type: "todo_state"
   id: string
   timestamp?: string
-  todos?: { todos?: string }
+  todos?: { todos?: TodoStateValue }
 }
+
+export interface TodoItem {
+  [key: string]: unknown
+}
+
+export type TodoStateValue = string | TodoItem[]
 
 export interface CompactionStateRecord {
   type: "compaction_state"
@@ -140,6 +146,23 @@ export function contentBlocks(
 ): ContentBlock[] {
   if (typeof content === "string") return [{ type: "text", text: content }]
   return content
+}
+
+/** Normalize known todo_state payload variants into text safe for SQLite. */
+export function todoStateText(todos: TodoStateValue | undefined): string | null {
+  if (typeof todos === "string") return todos
+  if (!Array.isArray(todos)) return null
+  const lines = todos
+    .map((todo) => {
+      if (!todo || typeof todo !== "object") return String(todo)
+      const content = typeof todo.content === "string" ? todo.content : ""
+      if (!content) return JSON.stringify(todo)
+      return typeof todo.status === "string"
+        ? `- [${todo.status}] ${content}`
+        : `- ${content}`
+    })
+    .filter(Boolean)
+  return lines.length ? lines.join("\n") : null
 }
 
 export function parseTimestamp(ts: string | undefined): number | null {

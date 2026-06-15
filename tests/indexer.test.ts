@@ -11,9 +11,11 @@ import { insightsReport } from "../src/query/insights"
 import {
   makeFixture,
   appendToTranscriptA,
+  addArrayTodoSession,
   SESSION_A,
   SESSION_B,
   SESSION_SUB,
+  SESSION_TODO_ARRAY,
   type Fixture,
 } from "./fixtures"
 
@@ -96,6 +98,13 @@ describe("indexing", () => {
     const result = await indexer.refresh()
     expect(result.sessionsRemoved).toBe(1)
     expect(() => resolveSession(db, SESSION_A)).toThrow()
+  })
+
+  test("normalizes structured todo arrays", async () => {
+    addArrayTodoSession(fixture)
+    await indexer.refresh()
+    const session = resolveSession(db, SESSION_TODO_ARRAY)
+    expect(session.lastTodos).toContain("[completed] fix array todo handling")
   })
 })
 

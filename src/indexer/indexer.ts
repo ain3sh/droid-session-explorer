@@ -6,6 +6,7 @@ import { scanSessions } from "./scanner"
 import {
   contentBlocks,
   parseTimestamp,
+  todoStateText,
   toolResultText,
   type HistoryEntry,
   type SessionRecord,
@@ -302,7 +303,7 @@ export class Indexer {
         }
         case "todo_state":
           counters.todo_count++
-          counters.last_todos = record.todos?.todos ?? counters.last_todos
+          counters.last_todos = todoStateText(record.todos?.todos) ?? counters.last_todos
           break
         case "compaction_state":
           counters.compaction_count++
