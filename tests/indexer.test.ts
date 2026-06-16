@@ -12,10 +12,12 @@ import {
   makeFixture,
   appendToTranscriptA,
   addArrayTodoSession,
+  addClearedTodoSession,
   SESSION_A,
   SESSION_B,
   SESSION_SUB,
   SESSION_TODO_ARRAY,
+  SESSION_TODO_CLEARED,
   type Fixture,
 } from "./fixtures"
 
@@ -105,6 +107,13 @@ describe("indexing", () => {
     await indexer.refresh()
     const session = resolveSession(db, SESSION_TODO_ARRAY)
     expect(session.lastTodos).toContain("[completed] fix array todo handling")
+  })
+
+  test("clears stale todo snapshots with empty arrays", async () => {
+    addClearedTodoSession(fixture)
+    await indexer.refresh()
+    const session = resolveSession(db, SESSION_TODO_CLEARED)
+    expect(session.lastTodos).toBe("")
   })
 })
 

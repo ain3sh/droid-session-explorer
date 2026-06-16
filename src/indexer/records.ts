@@ -162,7 +162,7 @@ export function todoStateText(todos: TodoStateValue | undefined): string | null 
         : `- ${content}`
     })
     .filter(Boolean)
-  return lines.length ? lines.join("\n") : null
+  return lines.join("\n")
 }
 
 export function parseTimestamp(ts: string | undefined): number | null {

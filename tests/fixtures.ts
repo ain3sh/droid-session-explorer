@@ -6,6 +6,7 @@ export const SESSION_A = "aaaaaaaa-1111-2222-3333-444444444444"
 export const SESSION_B = "bbbbbbbb-1111-2222-3333-444444444444"
 export const SESSION_SUB = "cccccccc-1111-2222-3333-444444444444"
 export const SESSION_TODO_ARRAY = "dddddddd-1111-2222-3333-444444444444"
+export const SESSION_TODO_CLEARED = "eeeeeeee-1111-2222-3333-444444444444"
 
 export interface Fixture {
   root: string
@@ -239,6 +240,41 @@ export function addArrayTodoSession(fixture: Fixture): void {
             },
           ],
         },
+      },
+    ]),
+  )
+}
+
+export function addClearedTodoSession(fixture: Fixture): void {
+  writeFileSync(
+    join(fixture.slugDir, `${SESSION_TODO_CLEARED}.jsonl`),
+    jsonl([
+      {
+        type: "session_start",
+        id: SESSION_TODO_CLEARED,
+        title: "cleared todos",
+        cwd: "/home/test/projects/demo",
+      },
+      {
+        type: "todo_state",
+        id: "todos-array",
+        timestamp: ts(30),
+        todos: {
+          todos: [
+            {
+              id: "stale-test",
+              content: "clear stale todo snapshot",
+              status: "pending",
+              priority: "high",
+            },
+          ],
+        },
+      },
+      {
+        type: "todo_state",
+        id: "todos-empty",
+        timestamp: ts(31),
+        todos: { todos: [] },
       },
     ]),
   )
