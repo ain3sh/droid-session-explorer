@@ -60,15 +60,32 @@ settingsOnly:[{id,settings}] }`.
 ## analytics
 
 ```bash
-dsx stats [--by day|model|project|tool|hour] [-p <project>]
-          [--since <when>] [--until <when>] [--json]
+dsx stats [--by day|model|project|tool|hour|day-model|day-project|
+              project-model|day-tool|project-tool|model-tool|segment|dist]
+          [-p <project>] [--model <substring>] [--since <when>]
+          [--until <when>] [--metric <metric>] [--all] [--json]
 dsx insights [-p <project>] [--since <when>] [--kind <kind>] [-n 20] [--json]
 dsx insights --deep [-m <model>] [--reasoning low|medium|high] [--json]
 dsx ask "<question>" [-m <model>] [--cwd <path>]
 ```
 
 - `insights` semantics (kinds, severity, outlier math) are documented in
-  `interpreting.md`.
+  `insights.md`.
+- Usage scope and fork-inflation caveats are documented in
+  `usage-semantics.md`; stats cross-tab semantics are in `stats-analytics.md`.
+- `stats` excludes subagent and droid-exec sessions by default; add `--all`
+  to include them. `--by segment` always shows `main`, `subagent`, and `exec`
+  buckets so you can see what `--all` changes.
+- Cross-tabs:
+  - `day-model` / `day-project`: daily usage split by model or project.
+  - `project-model`: model mix inside each project.
+  - `day-tool` / `project-tool` / `model-tool`: tool calls and error rates by
+    the chosen dimension.
+  - `dist`: percentiles and histogram for `credits`, `tokens`/`totalTokens`,
+    `active`, or `toolErrors`.
+- Chart-oriented views honor `--metric`; common metrics include `credits`,
+  `inputTokens`, `outputTokens`, `totalTokens`, `messages`, `sessions`,
+  `toolCalls`, `toolErrors`, `errorRate`, and `tokensPerMessage`.
 - `--deep` spawns a droid exec sub-agent that mines the index and writes a
   cited brief; the result streams to stdout and is cached for the TUI.
   Defaults come from `$DSX_INSIGHTS_MODEL` (kimi-k2.6) and

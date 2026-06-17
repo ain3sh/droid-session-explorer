@@ -164,6 +164,8 @@ function Footer() {
         return "enter open transcript  esc back  q quit"
       case "insights":
         return "g generate brief  d findings/brief  w window  e effort  m model  p project  enter open  esc back"
+      case "stats":
+        return "tab dim  w window  v metric  a main/all  p project  m model  esc back  q quit"
       default:
         return "1-5 views  enter select  esc back  q quit"
     }

@@ -12,7 +12,7 @@ export function buildProgram(ctx: AppContext): Command {
     .description(
       "Droid Session Explorer: search, analyze, and navigate your Factory Droid sessions.\nRun with no arguments to open the TUI.",
     )
-    .version("0.2.2")
+    .version("0.2.3")
     .option("--no-refresh", "skip the index freshness check (fastest)")
 
   registerSessionCommands(program, ctx)

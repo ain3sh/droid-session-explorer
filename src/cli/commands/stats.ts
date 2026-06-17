@@ -4,11 +4,23 @@ import type { AppContext } from "../../context"
 import { insightsReport, type SignalKind } from "../../query/insights"
 import {
   byDay,
+  byDayGroup,
   byGroup,
+  byGroupPair,
   byHour,
+  bySegment,
   byTool,
+  byToolMatrix,
+  deriveUsageRates,
+  distribution,
+  metricValue,
   totals,
+  type DailyGroupUsage,
+  type GroupPairUsage,
   type StatsFilters,
+  type ToolMatrixUsage,
+  type UsageLike,
+  type UsageMetric,
 } from "../../query/stats"
 import {
   fail,
@@ -27,18 +39,28 @@ export function registerStatsCommands(program: Command, ctx: AppContext): void {
   program
     .command("stats")
     .description("usage analytics: tokens, credits, models, projects, tools, activity")
-    .option("--by <dim>", "day|model|project|tool|hour (default: overview)")
+    .option(
+      "--by <dim>",
+      "day|model|project|tool|hour|day-model|day-project|project-model|day-tool|project-tool|model-tool|segment|dist",
+    )
     .option("-p, --project <name>", "filter by project")
+    .option("--model <model>", "filter by model substring")
     .option("--since <when>", "window start (7d, 30d, 2026-01-01)")
     .option("--until <when>", "window end")
+    .option("--metric <metric>", "credits|inputTokens|outputTokens|totalTokens|messages|sessions|toolCalls|toolErrors")
+    .option("--all", "include subagent and droid-exec sessions")
     .option("--json", "JSON output")
     .action(async (opts) => {
       await ensureFresh(ctx, !program.opts().refresh)
       const filters: StatsFilters = {
         project: opts.project,
+        model: opts.model,
         since: opts.since ? parseWhen(opts.since) : undefined,
         until: opts.until ? parseWhen(opts.until) : undefined,
+        includeSubagents: opts.all,
+        includeExec: opts.all,
       }
+      const usageMetric = () => parseUsageMetric(opts.metric)
 
       switch (opts.by) {
         case undefined: {
@@ -94,6 +116,19 @@ export function registerStatsCommands(program: Command, ctx: AppContext): void {
           )
           return
         }
+        case "day-model":
+        case "day-project": {
+          const group = opts.by === "day-model" ? "model" : "project"
+          const rows = byDayGroup(ctx.db, group, filters)
+          output(opts.json, rows, () =>
+            renderDailyGroup(rows, {
+              label: group,
+              metric: usageMetric(),
+              shortenProject: group === "project",
+            }),
+          )
+          return
+        }
         case "model":
         case "project": {
           const groups = byGroup(ctx.db, opts.by, filters)
@@ -115,6 +150,11 @@ export function registerStatsCommands(program: Command, ctx: AppContext): void {
               },
             ]),
           )
+          return
+        }
+        case "project-model": {
+          const pairs = byGroupPair(ctx.db, "project", "model", filters)
+          output(opts.json, pairs, () => renderGroupPairs(pairs))
           return
         }
         case "tool": {
@@ -139,6 +179,40 @@ export function registerStatsCommands(program: Command, ctx: AppContext): void {
           )
           return
         }
+        case "day-tool":
+        case "project-tool":
+        case "model-tool": {
+          const group =
+            opts.by === "day-tool" ? "day" : opts.by === "project-tool" ? "project" : "model"
+          const rows = byToolMatrix(ctx.db, group, filters)
+          output(opts.json, rows, () => renderToolMatrix(rows, group))
+          return
+        }
+        case "segment": {
+          const segments = bySegment(ctx.db, filters)
+          output(opts.json, segments, () =>
+            renderTable(segments, [
+              { header: "SEGMENT", value: (s) => s.segment },
+              { header: "SESSIONS", value: (s) => String(s.sessions), align: "right" },
+              { header: "IN", value: (s) => humanTokens(s.inputTokens), align: "right" },
+              { header: "OUT", value: (s) => humanTokens(s.outputTokens), align: "right" },
+              { header: "ACTIVE", value: (s) => humanDuration(s.activeTimeMs), align: "right" },
+              {
+                header: "ERR%",
+                value: (s) =>
+                  s.toolCalls ? ((s.toolErrors / s.toolCalls) * 100).toFixed(1) : "0",
+                align: "right",
+              },
+              { header: "CREDITS", value: (s) => s.credits.toLocaleString(), align: "right" },
+            ]),
+          )
+          return
+        }
+        case "dist": {
+          const dist = distribution(ctx.db, parseDistributionMetric(opts.metric), filters)
+          output(opts.json, dist, () => renderDistribution(dist))
+          return
+        }
         case "hour": {
           const hours = byHour(ctx.db, filters)
           const byH = new Map(hours.map((h) => [h.hour, h.messages]))
@@ -157,7 +231,9 @@ export function registerStatsCommands(program: Command, ctx: AppContext): void {
           return
         }
         default:
-          fail("--by must be one of day|model|project|tool|hour")
+          fail(
+            "--by must be one of day|model|project|tool|hour|day-model|day-project|project-model|day-tool|project-tool|model-tool|segment|dist",
+          )
       }
     })
 
@@ -227,6 +303,138 @@ export function registerStatsCommands(program: Command, ctx: AppContext): void {
         return lines.join("\n")
       })
     })
+}
+
+const USAGE_METRICS: UsageMetric[] = [
+  "credits",
+  "inputTokens",
+  "outputTokens",
+  "totalTokens",
+  "messages",
+  "sessions",
+  "toolCalls",
+  "toolErrors",
+  "errorRate",
+  "creditsPerOutputToken",
+  "creditsPerActiveHour",
+  "tokensPerMessage",
+]
+
+function parseUsageMetric(input: string | undefined): UsageMetric {
+  if (!input) return "credits"
+  if (USAGE_METRICS.includes(input as UsageMetric)) return input as UsageMetric
+  fail(`--metric must be one of ${USAGE_METRICS.join("|")}`)
+}
+
+function parseDistributionMetric(input: string | undefined) {
+  if (!input || input === "credits") return "credits"
+  if (input === "tokens" || input === "totalTokens") return "tokens"
+  if (input === "active") return "active"
+  if (input === "toolErrors") return "toolErrors"
+  fail("--metric for --by dist must be one of credits|tokens|totalTokens|active|toolErrors")
+}
+
+function formatMetric(value: number, metric: UsageMetric): string {
+  switch (metric) {
+    case "credits":
+    case "inputTokens":
+    case "outputTokens":
+    case "totalTokens":
+    case "tokensPerMessage":
+      return humanTokens(Math.round(value))
+    case "errorRate":
+      return `${(value * 100).toFixed(1)}%`
+    case "creditsPerOutputToken":
+    case "creditsPerActiveHour":
+      return value.toLocaleString(undefined, { maximumFractionDigits: 1 })
+    default:
+      return Math.round(value).toLocaleString()
+  }
+}
+
+function renderDailyGroup(
+  rows: DailyGroupUsage[],
+  opts: { label: string; metric: UsageMetric; shortenProject: boolean },
+): string {
+  if (rows.length === 0) return pc.dim("no matching usage")
+  const days = [...new Set(rows.map((r) => r.day))].sort()
+  const byKey = new Map<string, DailyGroupUsage[]>()
+  for (const row of rows) byKey.set(row.key, [...(byKey.get(row.key) ?? []), row])
+  const series = [...byKey.entries()]
+    .map(([key, values]) => ({
+      key,
+      values,
+      total: values.reduce((sum, row) => sum + metricValue(row, opts.metric), 0),
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 12)
+
+  const lines = [pc.bold(`daily ${opts.label} by ${opts.metric}`)]
+  for (const item of series) {
+    const byDay = new Map(item.values.map((v) => [v.day, metricValue(v, opts.metric)]))
+    const name = opts.shortenProject ? item.key.split("/").slice(-2).join("/") : item.key
+    lines.push(
+      `${name.padEnd(32).slice(0, 32)} ${formatMetric(item.total, opts.metric).padStart(10)} ${pc.green(
+        sparkline(days.map((d) => byDay.get(d) ?? 0)),
+      )}`,
+    )
+  }
+  return lines.join("\n")
+}
+
+function renderGroupPairs(rows: GroupPairUsage[]): string {
+  return renderTable(rows.slice(0, 40), [
+    { header: "PROJECT", value: (r) => r.leftKey.split("/").slice(-2).join("/") },
+    { header: "MODEL", value: (r) => r.rightKey },
+    { header: "SESSIONS", value: (r) => String(r.sessions), align: "right" },
+    { header: "IN", value: (r) => humanTokens(r.inputTokens), align: "right" },
+    { header: "OUT", value: (r) => humanTokens(r.outputTokens), align: "right" },
+    {
+      header: "TOK/MSG",
+      value: (r) => humanTokens(Math.round(deriveUsageRates(r).tokensPerMessage)),
+      align: "right",
+    },
+    { header: "CREDITS", value: (r) => r.credits.toLocaleString(), align: "right" },
+  ])
+}
+
+function renderToolMatrix(rows: ToolMatrixUsage[], group: string): string {
+  if (rows.length === 0) return pc.dim("no matching tool usage")
+  return renderTable(rows.slice(0, 50), [
+    {
+      header: group.toUpperCase(),
+      value: (r) => (group === "project" ? r.key.split("/").slice(-2).join("/") : r.key),
+    },
+    { header: "TOOL", value: (r) => r.tool },
+    { header: "CALLS", value: (r) => r.calls.toLocaleString(), align: "right" },
+    {
+      header: "ERRORS",
+      value: (r) => String(r.errors),
+      align: "right",
+      color: (v, r) => (r.errors > 0 ? pc.red(v) : pc.dim(v)),
+    },
+    { header: "ERR%", value: (r) => (r.errorRate * 100).toFixed(1), align: "right" },
+    { header: "SESSIONS", value: (r) => String(r.sessions), align: "right" },
+  ])
+}
+
+function renderDistribution(dist: ReturnType<typeof distribution>): string {
+  if (dist.count === 0) return pc.dim("no matching sessions")
+  const maxBucket = Math.max(...dist.buckets.map((b) => b.count), 1)
+  const fmt = (n: number) =>
+    dist.metric === "active" ? humanDuration(n) : humanTokens(Math.round(n))
+  const lines = [
+    pc.bold(`${dist.metric} distribution`),
+    `count=${dist.count.toLocaleString()} min=${fmt(dist.min)} p50=${fmt(dist.p50)} p90=${fmt(dist.p90)} p95=${fmt(dist.p95)} max=${fmt(dist.max)}`,
+  ]
+  for (const b of dist.buckets) {
+    lines.push(
+      `${fmt(b.from).padStart(8)}-${fmt(b.to).padEnd(8)} ${pc.green(
+        "\u2588".repeat(Math.round((b.count / maxBucket) * 32)),
+      )} ${b.count.toLocaleString()}`,
+    )
+  }
+  return lines.join("\n")
 }
 
 function kindBadge(kind: SignalKind): string {

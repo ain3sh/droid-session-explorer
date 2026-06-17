@@ -58,7 +58,21 @@ latest release.
 
    Expected: `dsx-{linux,darwin}-{x64,arm64}.tar.gz`.
 
-6. Smoke test the published artifact end to end:
+6. Replace GitHub's auto-generated release notes with a user-facing changelog
+   before declaring the release done. This is mandatory for under-the-hood
+   releases where the generated commit list does not explain how to use the
+   change. Cover:
+
+   - headline summary in plain language
+   - new commands/flags/TUI shortcuts and concrete examples
+   - behavior changes and migration/interpretation notes
+   - verification performed and any known caveats
+
+   ```bash
+   gh release edit v0.x.y --repo ain3sh/droid-session-explorer --notes-file /tmp/dsx-v0.x.y-notes.md
+   ```
+
+7. Smoke test the published artifact end to end:
 
    ```bash
    DSX_INSTALL_DIR=/tmp/dsx-rel-test bash -c 'curl -fsSL https://raw.githubusercontent.com/ain3sh/droid-session-explorer/main/install.sh | bash'

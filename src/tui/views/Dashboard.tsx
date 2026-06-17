@@ -32,7 +32,7 @@ export function Dashboard() {
         />
       </box>
 
-      <box border borderStyle="single" borderColor={T.border} paddingX={1} title="daily credits" titleAlignment="left">
+      <box border borderStyle="single" borderColor={T.border} paddingX={1} title="daily credits (main)" titleAlignment="left">
         <text>
           <span style={{ fg: T.green }}>{sparkline(days().map((d) => d.credits))}</span>
         </text>

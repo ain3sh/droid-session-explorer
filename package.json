@@ -1,6 +1,6 @@
 {
   "name": "droid-session-explorer",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "dsx: CLI + TUI for searching and analyzing Factory Droid sessions",
   "type": "module",
   "private": true,

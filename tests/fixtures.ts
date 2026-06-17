@@ -7,6 +7,8 @@ export const SESSION_B = "bbbbbbbb-1111-2222-3333-444444444444"
 export const SESSION_SUB = "cccccccc-1111-2222-3333-444444444444"
 export const SESSION_TODO_ARRAY = "dddddddd-1111-2222-3333-444444444444"
 export const SESSION_TODO_CLEARED = "eeeeeeee-1111-2222-3333-444444444444"
+export const SESSION_OTHER = "ffffffff-1111-2222-3333-444444444444"
+export const SESSION_EXEC = "99999999-1111-2222-3333-444444444444"
 
 export interface Fixture {
   root: string
@@ -14,8 +16,8 @@ export interface Fixture {
   transcriptA: string
 }
 
-const ts = (minute: number) =>
-  `2026-06-01T10:${String(minute).padStart(2, "0")}:00.000Z`
+const ts = (minute: number, day = 1) =>
+  `2026-06-${String(day).padStart(2, "0")}T10:${String(minute).padStart(2, "0")}:00.000Z`
 
 function jsonl(records: object[]): string {
   return records.map((r) => JSON.stringify(r)).join("\n") + "\n"
@@ -149,12 +151,44 @@ export function makeFixture(): Fixture {
       {
         type: "message",
         id: "m1",
-        timestamp: ts(10),
+        timestamp: ts(10, 2),
         message: { role: "user", content: [{ type: "text", text: "try a different approach" }] },
       },
       {
+        type: "message",
+        id: "m2",
+        timestamp: ts(11, 2),
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "tu-b1",
+              name: "Read",
+              input: { file_path: "/home/test/projects/demo/src/parser.ts" },
+            },
+          ],
+        },
+      },
+      {
+        type: "message",
+        id: "m3",
+        timestamp: ts(12, 2),
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu-b1",
+              content: "parser source",
+              is_error: false,
+            },
+          ],
+        },
+      },
+      {
         type: "session_end",
-        timestamp: ts(11),
+        timestamp: ts(13, 2),
         durationMs: 1000,
         toolCount: 0,
         finalText: "done",
@@ -166,6 +200,85 @@ export function makeFixture(): Fixture {
     JSON.stringify({
       model: "gpt-5.5",
       tokenUsage: { inputTokens: 10, outputTokens: 5, factoryCredits: 7 },
+    }),
+  )
+
+  const otherSlugDir = join(root, "-home-test-projects-other")
+  mkdirSync(otherSlugDir, { recursive: true })
+  writeFileSync(
+    join(otherSlugDir, `${SESSION_OTHER}.jsonl`),
+    jsonl([
+      {
+        type: "session_start",
+        id: SESSION_OTHER,
+        title: "improve stats chart",
+        cwd: "/home/test/projects/other",
+      },
+      {
+        type: "message",
+        id: "m1",
+        timestamp: ts(20, 2),
+        message: { role: "user", content: [{ type: "text", text: "chart stats by model" }] },
+      },
+      {
+        type: "message",
+        id: "m2",
+        timestamp: ts(21, 2),
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "tu-other",
+              name: "ApplyPatch",
+              input: { patch: "add chart" },
+            },
+          ],
+        },
+      },
+      {
+        type: "message",
+        id: "m3",
+        timestamp: ts(22, 2),
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "tu-other",
+              content: "patch failed",
+              is_error: true,
+            },
+          ],
+        },
+      },
+    ]),
+  )
+  writeFileSync(
+    join(otherSlugDir, `${SESSION_OTHER}.settings.json`),
+    JSON.stringify({
+      model: "gpt-5.5",
+      tokenUsage: { inputTokens: 90, outputTokens: 30, factoryCredits: 300 },
+    }),
+  )
+
+  writeFileSync(
+    join(slugDir, `${SESSION_EXEC}.jsonl`),
+    jsonl([
+      {
+        type: "session_start",
+        id: SESSION_EXEC,
+        title: "dsx deep insights",
+        cwd: "/home/test/projects/demo",
+      },
+    ]),
+  )
+  writeFileSync(
+    join(slugDir, `${SESSION_EXEC}.settings.json`),
+    JSON.stringify({
+      model: "gpt-5.5",
+      tokenUsage: { inputTokens: 50, outputTokens: 10, factoryCredits: 50 },
+      tags: [{ name: "exec" }],
     }),
   )
 

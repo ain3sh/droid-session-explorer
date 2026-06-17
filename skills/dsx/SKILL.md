@@ -20,16 +20,18 @@ trigger fires:
 | Read | When |
 |---|---|
 | `references/commands.md` | composing non-trivial queries: full flag surface, FTS5 syntax, JSON hit shapes, export/maintenance commands |
-| `references/interpreting.md` | reasoning about costs, tokens, or `dsx insights` output: signal kinds, severity semantics, fork-inflation and exclusion rules |
+| `references/usage-semantics.md` | reasoning about costs, tokens, fork inflation, subagents, or droid-exec exclusion |
+| `references/stats-analytics.md` | reasoning about `dsx stats` cross-tabs, pro-rating, metrics, or distributions |
+| `references/insights.md` | reasoning about `dsx insights` signal kinds, severity, and report-level rates |
 
 ## Core workflow
 
 1. Start broad: `dsx search "<query>" --json` or `dsx list --json` with filters.
 2. Drill in: `dsx show <id>` for the shape, `dsx export <id> --no-tools` for content.
 3. Cite session ids (8-char prefixes are fine) for every claim about past work.
-4. Costs and usage: `dsx stats --by model|project|day --since 30d`. Before
-   attributing cost, read `references/interpreting.md` (fork chains inherit
-   cumulative usage; naive sums double-count).
+4. Costs and usage: `dsx stats --by model|project|day|day-model|day-project --since 30d`. Before
+   attributing cost, read `references/usage-semantics.md` (fork chains
+   inherit cumulative usage; naive sums double-count).
 5. "What went wrong lately": `dsx insights --since 30d`.
 
 ## Quick reference
@@ -45,10 +47,12 @@ dsx export 22bc0eed --no-tools                         # markdown transcript
 dsx tree 22bc0eed                                      # fork + subagent lineage
 dsx resume 22bc0eed                                    # prints the resume command
 dsx stats --by model --since 30d --json
+dsx stats --by day-model --metric totalTokens --since 30d --json
+dsx stats --by day-tool --since 7d
 dsx insights --since 30d --json                        # heuristic findings
 dsx insights --deep                                    # LLM-written usage brief
 dsx ask "when did I last touch the auth flow?"         # delegate to a sub-droid
 ```
 
-Subagent and droid-exec sessions are hidden from `dsx list` by default; add
-`--all` to include them.
+Subagent and droid-exec sessions are hidden from `dsx list` and excluded from
+`dsx stats` by default; add `--all` to include them.

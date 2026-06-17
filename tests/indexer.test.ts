@@ -5,7 +5,15 @@ import { openDb } from "../src/indexer/db"
 import { Indexer } from "../src/indexer/indexer"
 import { listSessions, resolveSession, sessionToolStats } from "../src/query/sessions"
 import { searchBlocks } from "../src/query/search"
-import { totals, byDay, byTool } from "../src/query/stats"
+import {
+  byDay,
+  byDayGroup,
+  bySegment,
+  byTool,
+  byToolMatrix,
+  distribution,
+  totals,
+} from "../src/query/stats"
 import { lineage } from "../src/query/tree"
 import { insightsReport } from "../src/query/insights"
 import {
@@ -119,10 +127,10 @@ describe("indexing", () => {
 
 describe("queries", () => {
   test("listSessions filters and sorts", () => {
-    const all = listSessions(db, { includeSubagents: true })
-    expect(all.length).toBe(3)
+    const all = listSessions(db, { includeSubagents: true, includeExec: true })
+    expect(all.length).toBe(5)
     const main = listSessions(db)
-    expect(main.length).toBe(2)
+    expect(main.length).toBe(3)
     const byCredits = listSessions(db, { sort: "credits" })
     expect(byCredits[0]!.id).toBe(SESSION_A)
     const fuzzy = listSessions(db, { query: "flaky parser" })
@@ -151,14 +159,78 @@ describe("queries", () => {
   test("stats totals and grouping", () => {
     const t = totals(db)
     expect(t.sessions).toBe(3)
-    expect(t.credits).toBe(4242 + 7 + 99)
+    expect(t.credits).toBe(4242 + 7 + 300)
+    const all = totals(db, { includeSubagents: true, includeExec: true })
+    expect(all.sessions).toBe(5)
+    expect(all.credits).toBe(4242 + 7 + 300 + 99 + 50)
     const days = byDay(db)
-    expect(days.length).toBe(1)
+    expect(days.length).toBe(2)
     expect(days[0]!.day).toMatch(/2026-06-01/)
     const tools = byTool(db)
     expect(tools[0]!.tool).toBe("Execute")
     expect(tools[0]!.calls).toBe(2)
     expect(tools[0]!.errors).toBe(1)
+  })
+
+  test("stats day group cross-tabs pro-rate usage", () => {
+    const dayModels = byDayGroup(db, "model")
+    expect(dayModels).toHaveLength(2)
+    expect(dayModels[0]).toMatchObject({
+      day: "2026-06-01",
+      key: "claude-fable-5",
+      credits: 4242,
+      inputTokens: 1000,
+      outputTokens: 200,
+      messages: 2,
+      sessions: 1,
+      toolCalls: 2,
+      toolErrors: 1,
+    })
+    expect(dayModels[1]).toMatchObject({
+      day: "2026-06-02",
+      key: "gpt-5.5",
+      credits: 307,
+      inputTokens: 100,
+      outputTokens: 35,
+      messages: 2,
+      sessions: 2,
+      toolCalls: 2,
+      toolErrors: 1,
+    })
+
+    const dayProjects = byDayGroup(db, "project")
+    expect(dayProjects.find((r) => r.day === "2026-06-02" && r.key.endsWith("/other"))!.credits).toBe(300)
+  })
+
+  test("stats tool matrix groups calls and errors by day", () => {
+    const toolDays = byToolMatrix(db, "day")
+    expect(toolDays.find((r) => r.key === "2026-06-01" && r.tool === "Execute")).toMatchObject({
+      calls: 2,
+      errors: 1,
+      sessions: 1,
+      errorRate: 0.5,
+    })
+    expect(toolDays.find((r) => r.key === "2026-06-02" && r.tool === "ApplyPatch")).toMatchObject({
+      calls: 1,
+      errors: 1,
+      sessions: 1,
+      errorRate: 1,
+    })
+  })
+
+  test("stats segment view shows default-excluded buckets", () => {
+    const segments = bySegment(db)
+    expect(segments.map((s) => s.segment)).toEqual(["main", "subagent", "exec"])
+    expect(segments.find((s) => s.segment === "main")!.credits).toBe(4242 + 7 + 300)
+  })
+
+  test("stats distribution reports percentiles and buckets", () => {
+    const dist = distribution(db, "credits")
+    expect(dist.count).toBe(3)
+    expect(dist.min).toBe(7)
+    expect(dist.p50).toBe(300)
+    expect(dist.max).toBe(4242)
+    expect(dist.buckets.reduce((sum, b) => sum + b.count, 0)).toBe(3)
   })
 
   test("lineage builds the full family tree", () => {
@@ -170,7 +242,7 @@ describe("queries", () => {
 
   test("insights flags retry loops session", () => {
     const report = insightsReport(db)
-    expect(report.overall.sessions).toBe(2)
+    expect(report.overall.sessions).toBe(3)
     expect(report.overall.toolErrorRate).toBeCloseTo(0.5)
   })
 
