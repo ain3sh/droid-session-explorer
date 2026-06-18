@@ -11,7 +11,7 @@ const outfile = process.argv[3] ?? `dist/dsx-${String(target).replace(/^bun-/, "
 const result = await Bun.build({
   entrypoints: ["./src/index.ts"],
   target: "bun",
-  // skills/dsx/references/*.md are embedded as the sub-droid cheatsheet.
+  // .agents/skills/dsx/references/*.md are embedded as the sub-droid cheatsheet.
   loader: { ".md": "text" },
   plugins: [solidPlugin],
   compile: {

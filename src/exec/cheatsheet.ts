@@ -1,10 +1,10 @@
 // The skill reference files double as the sub-droid cheatsheet: imported as
 // text so they are embedded into bundles and SEA binaries at build time, with
-// skills/dsx/references/ as the single source of truth.
-import commandsRef from "../../skills/dsx/references/commands.md" with { type: "text" }
-import insightsRef from "../../skills/dsx/references/insights.md" with { type: "text" }
-import statsAnalyticsRef from "../../skills/dsx/references/stats-analytics.md" with { type: "text" }
-import usageSemanticsRef from "../../skills/dsx/references/usage-semantics.md" with { type: "text" }
+// .agents/skills/dsx/references/ as the single source of truth.
+import commandsRef from "../../.agents/skills/dsx/references/commands.md" with { type: "text" }
+import insightsRef from "../../.agents/skills/dsx/references/insights.md" with { type: "text" }
+import statsAnalyticsRef from "../../.agents/skills/dsx/references/stats-analytics.md" with { type: "text" }
+import usageSemanticsRef from "../../.agents/skills/dsx/references/usage-semantics.md" with { type: "text" }
 
 export const DSX_CHEATSHEET = `
 You have the \`dsx\` CLI available. It indexes every local droid session

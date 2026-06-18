@@ -98,12 +98,12 @@ latest release.
 ## Conventions
 
 - All CLI query commands support `--json` with stable shapes; treat those
-  shapes as a public contract (the companion skill in `skills/dsx/` documents
+  shapes as a public contract (the companion skill in `.agents/skills/dsx/` documents
   them).
 - When core CLI functionality changes (commands, flags, JSON shapes, output
   semantics; TUI-only changes are exempt), update the skill in the same
-  change: `skills/dsx/SKILL.md` for the quick reference and
-  `skills/dsx/references/*.md` for the full surface. The reference files are
+  change: `.agents/skills/dsx/SKILL.md` for the quick reference and
+  `.agents/skills/dsx/references/*.md` for the full surface. The reference files are
   also embedded as the sub-droid cheatsheet, so a stale skill misleads both
   humans and the `ask`/`--deep` sub-agents.
 - Errors to stderr, data to stdout.
@@ -111,7 +111,7 @@ latest release.
   `.agents/specs/*.notes.md`; append there when you hit something non-obvious.
 - LLM-powered features (`dsx ask`, `dsx insights --deep`) go through
   `src/exec/`: `droid.ts` drives `droid exec` over stream-jsonrpc, and
-  `cheatsheet.ts` embeds `skills/dsx/references/*.md` as text imports (single
+  `cheatsheet.ts` embeds `.agents/skills/dsx/references/*.md` as text imports (single
   source of truth; the `.md` text loader is configured in both build.ts and
   scripts/compile.ts). Spawned runs are tagged `exec` + `dsx-insights` so
   they stay out of dsx's own reports.

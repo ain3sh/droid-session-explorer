@@ -7,7 +7,7 @@ const result = await Bun.build({
   // solid-js and @opentui/solid must be bundled so the plugin can redirect
   // solid-js to its client build; everything else stays external.
   external: ["@opentui/core", "commander", "picocolors"],
-  // skills/dsx/references/*.md are embedded as the sub-droid cheatsheet.
+  // .agents/skills/dsx/references/*.md are embedded as the sub-droid cheatsheet.
   loader: { ".md": "text" },
   plugins: [solidPlugin],
 })
