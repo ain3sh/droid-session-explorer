@@ -1,6 +1,6 @@
 ---
 name: dsx
-description: Search and analyze past Factory Droid sessions with the dsx CLI. Use when the user asks about previous sessions, past work, token/credit usage, "how did I solve X before", session history, resuming old sessions, or analyzing droid usage patterns.
+description: Search and analyze past Factory Droid sessions with the dsx CLI. Use for previous work, session history, usage analysis, or proactively after two failed attempts at the same tooling, environment, deployment, or operational problem that may have been solved before.
 ---
 
 # dsx: Droid Session Explorer
@@ -26,6 +26,11 @@ trigger fires:
 
 ## Core workflow
 
+**Recovery trigger:** after two failed attempts at the same operational or
+tooling problem, stop inventing new hypotheses and search history before a
+third. Query the exact error or distinctive symptom in the current project,
+then inspect the best prior session for the proven fix.
+
 1. Start broad: `dsx search "<query>" --json` or `dsx list --json` with filters.
 2. Drill in: `dsx show <id>` for the shape, `dsx export <id> --no-tools` for content.
 3. Cite session ids (8-char prefixes are fine) for every claim about past work.
@@ -33,6 +38,7 @@ trigger fires:
    attributing cost, read `references/usage-semantics.md` (fork chains
    inherit cumulative usage; naive sums double-count).
 5. "What went wrong lately": `dsx insights --since 30d`.
+6. Record small workflow friction in the moment with `dsx papercut add`.
 
 ## Quick reference
 
@@ -52,7 +58,16 @@ dsx stats --by day-tool --since 7d
 dsx insights --since 30d --json                        # heuristic findings
 dsx insights --deep                                    # LLM-written usage brief
 dsx ask "when did I last touch the auth flow?"         # delegate to a sub-droid
+dsx papercut add "The test cwd made the path miss."     # durable manual record
+dsx papercut list --project demo --json                 # query recorded friction
+dsx papercut review 22bc0eed                            # preview transcript findings
+dsx papercut review 22bc0eed --save                     # append reviewed findings
 ```
 
 Subagent and droid-exec sessions are hidden from `dsx list` and excluded from
 `dsx stats` by default; add `--all` to include them.
+
+Papercuts are durable source data at
+`$XDG_DATA_HOME/dsx/papercuts.jsonl` (override with
+`$DSX_PAPERCUTS_PATH`), not part of the rebuildable session index. Transcript
+review is explicit and preview-only unless `--save` is passed.

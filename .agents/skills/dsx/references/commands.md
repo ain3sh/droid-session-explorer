@@ -93,6 +93,33 @@ dsx ask "<question>" [-m <model>] [--cwd <path>]
 - `ask` delegates a one-off question to a sub-droid with this reference in its
   prompt.
 
+## papercuts
+
+```bash
+dsx papercut add "<concrete friction>" [--session <id>] [--json]
+dsx papercut list [-p <project>] [--session <id>] [--source manual|review]
+                  [-n 25] [--json]
+dsx papercut review <id> [-m <model>] [--reasoning low|medium|high]
+                         [--save] [--json]
+```
+
+- `add` records one manual papercut and attributes it to a recently active
+  session in the current cwd when possible; use `--session` for exact
+  attribution.
+- `review` sends one transcript to a low-reasoning droid exec run, removes
+  exact duplicates, and previews candidates. It writes only with `--save`.
+  Its default model is `$DSX_PAPERCUT_MODEL` or `gpt-5.6-luna`.
+- Records are append-only JSONL at
+  `$XDG_DATA_HOME/dsx/papercuts.jsonl`; `$DSX_PAPERCUTS_PATH` overrides the
+  path. This is durable source data and survives index rebuilds.
+- JSON shapes:
+  - `add`: `PapercutRecord`
+  - `list`: `PapercutRecord[]`
+  - `review`: `{sessionId, model, reasoningEffort, candidates:[{message}],
+    saved:PapercutRecord[], execSessionId}`; `saved` is empty without `--save`
+  - `PapercutRecord`: `{id, createdAt, message, source, cwd, project,
+    sessionId:string|null, model:string|null}`
+
 ## maintenance
 
 ```bash

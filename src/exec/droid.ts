@@ -12,6 +12,7 @@ export interface DroidTurnOptions {
   cwd: string
   model?: string
   reasoningEffort?: string
+  systemPromptOverride?: string
   /** Plain tag names attached to the spawned session. */
   tags?: string[]
   timeoutMs?: number
@@ -198,8 +199,12 @@ export async function runDroidTurn(opts: DroidTurnOptions): Promise<DroidTurnRes
         cwd: opts.cwd,
         ...(opts.model ? { modelId: opts.model } : {}),
         ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
+        ...(opts.systemPromptOverride
+          ? { systemPromptOverride: opts.systemPromptOverride }
+          : {}),
         interactionMode: "auto",
         autonomyLevel: "low",
+        autoRejectPermissionRequests: true,
         ...(opts.tags?.length ? { tags: opts.tags.map((name) => ({ name })) } : {}),
       }),
       turn.then(() => {
