@@ -4,10 +4,10 @@ import type { DsxConfig } from "../config"
 import type { ScannedFile } from "./scanner"
 import { scanSessions } from "./scanner"
 import {
-  contentBlocks,
+  blockText,
+  normalizeMessage,
   parseTimestamp,
   todoStateText,
-  toolResultText,
   type HistoryEntry,
   type SessionRecord,
   type SessionSettings,
@@ -24,7 +24,17 @@ export interface IndexResult {
 
 export type ProgressFn = (done: number, total: number, path: string) => void
 
+/** A transcript line plus its byte span in the source file. */
+interface SourceLine {
+  line: string
+  offset: number
+  length: number
+}
+
 const CANCEL_RE = /(?:request )?cancell?ed by (?:the )?user|interrupted by user/i
+
+/** Content block types the index tracks; anything else is skipped. */
+const BLOCK_TYPES = new Set(["text", "thinking", "tool_use", "tool_result"])
 
 interface SessionCounters {
   message_count: number
@@ -110,7 +120,10 @@ export class Indexer {
       "DELETE FROM files; DELETE FROM sessions; DELETE FROM edges; DELETE FROM messages; DELETE FROM blocks; DELETE FROM blocks_fts; DELETE FROM history;",
     )
     this.db.query("DELETE FROM meta WHERE key='history_mtime'").run()
-    return this.refresh(onProgress)
+    const result = await this.refresh(onProgress)
+    // Deletes only free pages within the file; reclaim them for the OS.
+    this.db.exec("VACUUM")
+    return result
   }
 
   // ---------------------------------------------------------------- settings
@@ -197,7 +210,8 @@ export class Indexer {
 
     const counters = this.loadCounters(file.sessionId)
     const insertMessage = this.db.query(
-      "INSERT OR REPLACE INTO messages (session_id, seq, record_id, role, ts, day) VALUES (?, ?, ?, ?, ?, ?)",
+      `INSERT OR REPLACE INTO messages (session_id, seq, record_id, role, ts, day, byte_offset, byte_length)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     const insertBlock = this.db.query(
       `INSERT INTO blocks (session_id, seq, block_idx, role, type, tool_name, tool_use_id, is_error, ts, full_length)
@@ -207,7 +221,7 @@ export class Indexer {
     const maxBytes = this.config.maxIndexedBlockBytes
 
     let lines = 0
-    const ingestLine = (line: string): void => {
+    const ingestLine = ({ line, offset, length }: SourceLine): void => {
       let record: SessionRecord
       try {
         record = JSON.parse(line) as SessionRecord
@@ -245,30 +259,34 @@ export class Indexer {
           break
         }
         case "message": {
+          const normalized = normalizeMessage(record)
+          if (!normalized) break
+          const { role, blocks } = normalized
           const seq = counters.message_count++
-          const role = record.message.role
           if (role === "user") counters.user_message_count++
           else counters.assistant_message_count++
-          insertMessage.run(file.sessionId, seq, record.id ?? null, role, ts, dayOf(ts))
+          insertMessage.run(
+            file.sessionId,
+            seq,
+            record.id ?? null,
+            role,
+            ts,
+            dayOf(ts),
+            offset,
+            length,
+          )
 
-          const blocks = contentBlocks(record.message.content)
           for (let i = 0; i < blocks.length; i++) {
             const block = blocks[i]!
-            let text = ""
+            if (!BLOCK_TYPES.has(block.type)) continue
+            const text = blockText(block)
             let toolName: string | null = null
             let toolUseId: string | null = null
             let isError = 0
             switch (block.type) {
-              case "text":
-                text = block.text
-                break
-              case "thinking":
-                text = block.thinking
-                break
               case "tool_use": {
                 toolName = block.name
                 toolUseId = block.id
-                text = typeof block.input === "string" ? block.input : JSON.stringify(block.input)
                 counters.tool_call_count++
                 const sig = `${block.name}\u0000${text}`
                 if (sig === counters.last_tool_sig) counters.retry_loop_count++
@@ -277,12 +295,9 @@ export class Indexer {
               }
               case "tool_result":
                 toolUseId = block.tool_use_id
-                text = toolResultText(block.content)
                 isError = block.is_error ? 1 : 0
                 if (isError) counters.tool_error_count++
                 break
-              default:
-                continue
             }
             if (CANCEL_RE.test(text.slice(0, 4096))) counters.cancel_count++
             const row = insertBlock.get(
@@ -314,12 +329,12 @@ export class Indexer {
       }
     }
 
-    const tx = this.db.transaction((batch: string[]) => {
-      for (const line of batch) ingestLine(line)
+    const tx = this.db.transaction((batch: SourceLine[]) => {
+      for (const entry of batch) ingestLine(entry)
     })
 
     const BATCH = 2000
-    let batch: string[] = []
+    let batch: SourceLine[] = []
     let consumed = offset
     for await (const { line, byteLength, terminated } of readLines(file.path, offset)) {
       if (!terminated) {
@@ -330,7 +345,12 @@ export class Indexer {
           break
         }
       }
-      batch.push(line)
+      // Byte span of the line itself, excluding any trailing newline.
+      batch.push({
+        line,
+        offset: consumed,
+        length: terminated ? byteLength - 1 : byteLength,
+      })
       consumed += byteLength
       if (batch.length >= BATCH) {
         tx(batch)

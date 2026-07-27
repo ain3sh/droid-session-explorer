@@ -9,6 +9,7 @@ export const SESSION_TODO_ARRAY = "dddddddd-1111-2222-3333-444444444444"
 export const SESSION_TODO_CLEARED = "eeeeeeee-1111-2222-3333-444444444444"
 export const SESSION_OTHER = "ffffffff-1111-2222-3333-444444444444"
 export const SESSION_EXEC = "99999999-1111-2222-3333-444444444444"
+export const SESSION_FLAT = "12121212-1111-2222-3333-444444444444"
 
 export interface Fixture {
   root: string
@@ -326,6 +327,58 @@ export function appendToTranscriptA(fixture: Fixture): void {
         },
       },
     ]),
+  )
+}
+
+/**
+ * Some subagent transcripts use a flat message shape with epoch-ms timestamps,
+ * and permission audit verdicts can leak in mislabeled as messages.
+ */
+export function addFlatMessageSession(fixture: Fixture): void {
+  writeFileSync(
+    join(fixture.slugDir, `${SESSION_FLAT}.jsonl`),
+    jsonl([
+      {
+        type: "session_start",
+        id: SESSION_FLAT,
+        title: "flat shape subagent",
+        cwd: "/home/test/projects/demo",
+      },
+      {
+        type: "message",
+        id: "flat-1",
+        role: "user",
+        text: "# Task Tool Invocation\n\nreview the credential store",
+        timestamp: Date.parse(ts(40)),
+        session_id: SESSION_FLAT,
+      },
+      {
+        type: "message",
+        id: "flat-2",
+        role: "assistant",
+        text: "The predicate is wired into the restoration branch.",
+        timestamp: Date.parse(ts(41)),
+        session_id: SESSION_FLAT,
+      },
+      {
+        type: "message",
+        id: "verdict-1",
+        timestamp: ts(42),
+        action: "Allow",
+        rule_ids: [],
+        command_redacted: "gh api --paginate repos/acme/repo/pulls/1/reviews",
+        entry_type: "verdict",
+        tier_reached: 1,
+        raw_action: "Allow",
+      },
+    ]),
+  )
+  writeFileSync(
+    join(fixture.slugDir, `${SESSION_FLAT}.settings.json`),
+    JSON.stringify({
+      model: "gpt-5.5",
+      tokenUsage: { inputTokens: 20, outputTokens: 8, factoryCredits: 12 },
+    }),
   )
 }
 

@@ -48,21 +48,41 @@ export type ContentBlock =
   | ToolUseBlock
   | ToolResultBlock
 
-export interface MessageRecord {
+export type MessageRole = "user" | "assistant"
+
+/**
+ * The common shape: content blocks nested under `message`.
+ */
+export interface NestedMessageRecord {
   type: "message"
   id: string
   parentId?: string | null
-  timestamp?: string
+  timestamp?: string | number
   message: {
-    role: "user" | "assistant"
+    role: MessageRole
     content: string | ContentBlock[]
   }
 }
 
+/**
+ * Flat variant emitted by some subagent transcripts: role and plain text live
+ * on the record itself and `timestamp` is epoch milliseconds.
+ */
+export interface FlatMessageRecord {
+  type: "message"
+  id: string
+  timestamp?: string | number
+  role: MessageRole
+  text: string
+  session_id?: string
+}
+
+export type MessageRecord = NestedMessageRecord | FlatMessageRecord
+
 export interface TodoStateRecord {
   type: "todo_state"
   id: string
-  timestamp?: string
+  timestamp?: string | number
   todos?: { todos?: TodoStateValue }
 }
 
@@ -75,13 +95,13 @@ export type TodoStateValue = string | TodoItem[]
 export interface CompactionStateRecord {
   type: "compaction_state"
   id: string
-  timestamp?: string
+  timestamp?: string | number
   summaryText?: string
 }
 
 export interface SessionEndRecord {
   type: "session_end"
-  timestamp?: string
+  timestamp?: string | number
   durationMs?: number
   toolCount?: number
   finalText?: string
@@ -148,6 +168,45 @@ export function contentBlocks(
   return content
 }
 
+export interface NormalizedMessage {
+  role: MessageRole
+  blocks: ContentBlock[]
+}
+
+/** The searchable text of a content block, matching what the indexer stores. */
+export function blockText(block: ContentBlock): string {
+  switch (block.type) {
+    case "text":
+      return block.text
+    case "thinking":
+      return block.thinking
+    case "tool_use":
+      return typeof block.input === "string" ? block.input : JSON.stringify(block.input)
+    case "tool_result":
+      return toolResultText(block.content)
+  }
+}
+
+/**
+ * Collapse the message record variants into one shape.
+ *
+ * Returns null for records that claim `type: "message"` but carry neither
+ * shape — permission audit verdicts leak into some transcripts that way.
+ */
+export function normalizeMessage(
+  record: MessageRecord,
+): NormalizedMessage | null {
+  const nested = (record as NestedMessageRecord).message
+  if (nested && typeof nested === "object") {
+    return { role: nested.role, blocks: contentBlocks(nested.content) }
+  }
+  const flat = record as FlatMessageRecord
+  if (typeof flat.text === "string" && typeof flat.role === "string") {
+    return { role: flat.role, blocks: [{ type: "text", text: flat.text }] }
+  }
+  return null
+}
+
 /** Normalize known todo_state payload variants into text safe for SQLite. */
 export function todoStateText(todos: TodoStateValue | undefined): string | null {
   if (typeof todos === "string") return todos
@@ -165,8 +224,10 @@ export function todoStateText(todos: TodoStateValue | undefined): string | null 
   return lines.join("\n")
 }
 
-export function parseTimestamp(ts: string | undefined): number | null {
+/** Accepts ISO strings and epoch milliseconds; both appear in transcripts. */
+export function parseTimestamp(ts: string | number | undefined): number | null {
   if (!ts) return null
+  if (typeof ts === "number") return Number.isFinite(ts) ? ts : null
   const ms = Date.parse(ts)
   return Number.isNaN(ms) ? null : ms
 }

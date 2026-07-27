@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { rmSync } from "node:fs"
+import { appendFileSync, rmSync } from "node:fs"
 import type { Database } from "bun:sqlite"
 import { openDb } from "../src/indexer/db"
 import { Indexer } from "../src/indexer/indexer"
@@ -16,13 +16,16 @@ import {
 } from "../src/query/stats"
 import { lineage } from "../src/query/tree"
 import { insightsReport } from "../src/query/insights"
+import { loadTranscript } from "../src/query/transcript"
 import {
   makeFixture,
   appendToTranscriptA,
   addArrayTodoSession,
   addClearedTodoSession,
+  addFlatMessageSession,
   SESSION_A,
   SESSION_B,
+  SESSION_FLAT,
   SESSION_SUB,
   SESSION_TODO_ARRAY,
   SESSION_TODO_CLEARED,
@@ -123,6 +126,30 @@ describe("indexing", () => {
     const session = resolveSession(db, SESSION_TODO_CLEARED)
     expect(session.lastTodos).toBe("")
   })
+
+  test("ingests flat messages and skips non-message records", async () => {
+    addFlatMessageSession(fixture)
+    await indexer.refresh()
+    const session = resolveSession(db, SESSION_FLAT)
+    // The permission verdict record must not count as a message.
+    expect(session.counts.messages).toBe(2)
+    expect(session.counts.userMessages).toBe(1)
+    expect(session.counts.assistantMessages).toBe(1)
+    // Epoch-ms timestamps resolve like ISO ones.
+    expect(session.createdAt).toBe(Date.parse("2026-06-01T10:40:00.000Z"))
+
+    const hits = searchBlocks(db, "credential store", { session: SESSION_FLAT })
+    expect(hits.length).toBe(1)
+    expect(hits[0]!.snippet).toContain("credential")
+  })
+
+  test("flat messages render in transcripts", async () => {
+    addFlatMessageSession(fixture)
+    await indexer.refresh()
+    const session = resolveSession(db, SESSION_FLAT)
+    const transcript = await loadTranscript(session.transcriptPath!)
+    expect(transcript.entries.map((e) => e.kind)).toEqual(["user", "assistant"])
+  })
 })
 
 describe("queries", () => {
@@ -154,6 +181,33 @@ describe("queries", () => {
 
   test("search survives FTS-hostile syntax", () => {
     expect(() => searchBlocks(db, 'tokenizer AND (')).not.toThrow()
+  })
+
+  test("snippets are rebuilt from source with match sentinels", () => {
+    const [hit] = searchBlocks(db, "race condition")
+    expect(hit!.snippet).toBe("the tokenizer \u0001race\u0002 \u0001condition\u0002 is suspicious")
+  })
+
+  test("snippets window long blocks around the first match", async () => {
+    const filler = Array.from({ length: 200 }, (_, i) => `pad${i}`).join(" ")
+    appendFileSync(
+      fixture.transcriptA,
+      JSON.stringify({
+        type: "message",
+        id: "m-long",
+        timestamp: "2026-06-01T10:30:00.000Z",
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: `${filler} needle ${filler}` }],
+        },
+      }) + "\n",
+    )
+    await indexer.refresh()
+    const [hit] = searchBlocks(db, "needle")
+    expect(hit!.snippet).toContain("\u0001needle\u0002")
+    expect(hit!.snippet.startsWith("\u2026")).toBe(true)
+    expect(hit!.snippet.endsWith("\u2026")).toBe(true)
+    expect(hit!.snippet.length).toBeLessThan(500)
   })
 
   test("stats totals and grouping", () => {

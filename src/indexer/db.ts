@@ -2,7 +2,7 @@ import { Database } from "bun:sqlite"
 import { mkdirSync } from "node:fs"
 import { dirname } from "node:path"
 
-export const SCHEMA_VERSION = 1
+export const SCHEMA_VERSION = 2
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS meta (
@@ -77,6 +77,10 @@ CREATE TABLE IF NOT EXISTS messages (
   role TEXT NOT NULL,
   ts INTEGER,
   day TEXT,
+  -- Byte span of this record's line in the source JSONL, so block text can be
+  -- read back on demand instead of duplicated into the index.
+  byte_offset INTEGER NOT NULL DEFAULT 0,
+  byte_length INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (session_id, seq)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_day ON messages(day, role);
@@ -98,9 +102,13 @@ CREATE INDEX IF NOT EXISTS idx_blocks_session ON blocks(session_id, seq);
 CREATE INDEX IF NOT EXISTS idx_blocks_tool ON blocks(tool_name) WHERE tool_name IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_blocks_tooluse ON blocks(tool_use_id) WHERE tool_use_id IS NOT NULL;
 
+-- Contentless: the tokenized text is never stored, only the inverted index.
+-- Snippets are rebuilt from the source JSONL via messages.byte_offset.
 CREATE VIRTUAL TABLE IF NOT EXISTS blocks_fts USING fts5(
   content,
-  tokenize='porter unicode61'
+  tokenize='porter unicode61',
+  content='',
+  contentless_delete=1
 );
 
 CREATE TABLE IF NOT EXISTS history (
@@ -152,6 +160,9 @@ function rebuildSchema(db: Database): void {
     )
     .all()
   for (const { name } of tables) db.exec(`DROP TABLE IF EXISTS "${name}"`)
+  // Dropping tables only frees pages inside the file; hand them back to the OS
+  // so an upgrade does not leave the old index's footprint behind.
+  db.exec("VACUUM")
   db.exec(SCHEMA)
   db.query(
     "INSERT OR REPLACE INTO meta (key, value) VALUES ('schema_version', ?)",

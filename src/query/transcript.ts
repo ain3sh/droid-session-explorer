@@ -1,5 +1,5 @@
 import {
-  contentBlocks,
+  normalizeMessage,
   parseTimestamp,
   todoStateText,
   toolResultText,
@@ -64,8 +64,10 @@ export async function loadTranscript(path: string): Promise<Transcript> {
         transcript.forkParent = record.parent ?? null
         break
       case "message": {
-        const role = record.message.role
-        for (const block of contentBlocks(record.message.content)) {
+        const normalized = normalizeMessage(record)
+        if (!normalized) break
+        const role = normalized.role
+        for (const block of normalized.blocks) {
           switch (block.type) {
             case "text":
               if (block.text.trim()) {
