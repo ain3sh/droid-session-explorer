@@ -196,3 +196,27 @@ register (search stayed "0 hits"), and pressing `3` from the dashboard jumped
 straight into a transcript view. The dashboard render and clean launch were
 confirmed; TUI search snippets are covered by the CLI path + unit tests
 (`searchBlocks` is shared verbatim between CLI and TUI).
+
+## 6. Release v0.3.1 — schema downgrade hazard
+
+Cut v0.3.1 (CI green, 4 assets, notes published, installed to
+`~/.local/bin/dsx`).
+
+**Gotcha worth remembering:** this machine had two dsx installs —
+`~/.local/bin/dsx` (release SEA) and `~/.bun/bin/dsx` (a `bun link` symlink to
+this repo's `dist/index.js`). `~/.bun/bin` precedes `~/.local/bin` on PATH, so
+the dev link wins.
+
+While verifying the install I ran the *old 0.3.0* dev build against the freshly
+built v2 index. It saw `schema_version=2`, treated it as a mismatch, and ran
+`rebuildSchema()` — dropping every table. The new VACUUM then handed the pages
+back, so a 949 MB index became a 110 KB empty file. `dsx list` returned
+"no sessions match" with no error.
+
+`rebuildSchema()` fires on *any* version difference, not just older-than, so a
+downgrade silently nukes the index. Only derived data is at risk
+(`~/.factory/sessions` is untouched) and re-running `dsx index` restores it in
+~4.5 min, but the failure mode is invisible.
+
+Fixed here by `bun run build` so the dev link serves 0.3.1 too. If a real
+version-skew guard is ever wanted, `rebuildSchema()` is the place.
