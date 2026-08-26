@@ -333,8 +333,14 @@ export class Indexer {
       for (const entry of batch) ingestLine(entry)
     })
 
-    const BATCH = 2000
+    // Bound each synchronous transaction burst in both lines and bytes so the
+    // TUI's event loop keeps turning during a large background ingest, and
+    // yield a real macrotask between bursts (buffered generator reads only
+    // yield microtasks, which never reach input/render handling).
+    const BATCH_LINES = 2000
+    const BATCH_BYTES = 2 << 20
     let batch: SourceLine[] = []
+    let batchBytes = 0
     let consumed = offset
     for await (const { line, byteLength, terminated } of readLines(file.path, offset)) {
       if (!terminated) {
@@ -352,9 +358,12 @@ export class Indexer {
         length: terminated ? byteLength - 1 : byteLength,
       })
       consumed += byteLength
-      if (batch.length >= BATCH) {
+      batchBytes += byteLength
+      if (batch.length >= BATCH_LINES || batchBytes >= BATCH_BYTES) {
         tx(batch)
         batch = []
+        batchBytes = 0
+        await Bun.sleep(0)
       }
     }
     if (batch.length) tx(batch)
