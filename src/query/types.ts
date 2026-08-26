@@ -33,6 +33,7 @@ export interface SessionRow {
   compaction_count: number
   todo_count: number
   ended: number
+  last_tool_sig: string | null
   last_todos: string | null
 }
 
@@ -125,5 +126,3 @@ export function projectName(cwd: string | null, dirSlug: string): string {
   const parts = dirSlug.split("-").filter(Boolean)
   return parts[parts.length - 1] ?? dirSlug
 }
-
-export const SESSION_COLUMNS = "*"

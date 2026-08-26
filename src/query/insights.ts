@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite"
 import { toSummary, type SessionRow, type SessionSummary } from "./types"
-import type { StatsFilters } from "./stats"
+import { quantile, sessionWhere, type StatsFilters } from "./stats"
 
 export type SignalKind =
   | "error_dense"
@@ -45,33 +45,27 @@ const MAX_PER_KIND = 10
 
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 
-/** Nearest-rank quantile over an ascending-sorted array; 0 when empty. */
-function quantile(sorted: number[], q: number): number {
-  if (sorted.length === 0) return 0
-  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * q))
-  return sorted[idx]!
+/** First index in an ascending-sorted array whose value is >= target. */
+function lowerBound(sorted: number[], target: number): number {
+  let lo = 0
+  let hi = sorted.length
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (sorted[mid]! < target) lo = mid + 1
+    else hi = mid
+  }
+  return lo
 }
 
 export function insightsReport(
   db: Database,
   filters: InsightsFilters = {},
 ): InsightsReport {
-  const where: string[] = ["is_subagent = 0", "is_exec = 0"]
-  const params: (string | number)[] = []
-  if (filters.project) {
-    where.push("(cwd LIKE ? OR dir_slug LIKE ?)")
-    params.push(`%${filters.project}%`, `%${filters.project}%`)
-  }
-  if (filters.since !== undefined) {
-    where.push("updated_at >= ?")
-    params.push(filters.since)
-  }
-
-  const rows = db
-    .query<SessionRow, (string | number)[]>(
-      `SELECT * FROM sessions WHERE ${where.join(" AND ")}`,
-    )
+  const { sql, params } = sessionWhere(filters)
+  const summaries = db
+    .query<SessionRow, (string | number)[]>(`SELECT * FROM sessions WHERE ${sql}`)
     .all(...params)
+    .map(toSummary)
 
   const insights: Insight[] = []
   let totalCalls = 0
@@ -80,8 +74,7 @@ export function insightsReport(
   let abandoned = 0
   const positiveCredits: number[] = []
 
-  for (const row of rows) {
-    const s = toSummary(row)
+  for (const s of summaries) {
     if (s.usage.credits > 0) positiveCredits.push(s.usage.credits)
     totalCalls += s.counts.toolCalls
     totalErrors += s.counts.toolErrors
@@ -159,11 +152,10 @@ export function insightsReport(
   const medianCredits = quantile(positiveCredits, 0.5)
   if (positiveCredits.length >= MIN_COST_SAMPLE && medianCredits > 0) {
     const threshold = Math.max(quantile(positiveCredits, 0.95), 3 * medianCredits)
-    for (const row of rows) {
-      const s = toSummary(row)
+    for (const s of summaries) {
       if (s.usage.credits < threshold || s.usage.credits <= 0) continue
       const ratio = s.usage.credits / medianCredits
-      const above = positiveCredits.filter((c) => c >= s.usage.credits).length
+      const above = positiveCredits.length - lowerBound(positiveCredits, s.usage.credits)
       const topPct = (above / positiveCredits.length) * 100
       insights.push({
         kind: "expensive",
@@ -192,10 +184,10 @@ export function insightsReport(
   return {
     generatedAt: Date.now(),
     overall: {
-      sessions: rows.length,
+      sessions: summaries.length,
       toolErrorRate: totalCalls ? totalErrors / totalCalls : 0,
-      interruptionRate: rows.length ? interrupted / rows.length : 0,
-      abandonRate: rows.length ? abandoned / rows.length : 0,
+      interruptionRate: summaries.length ? interrupted / summaries.length : 0,
+      abandonRate: summaries.length ? abandoned / summaries.length : 0,
       medianCredits,
     },
     insights: selected.slice(0, filters.limit ?? 50),

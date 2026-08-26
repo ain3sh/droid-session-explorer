@@ -226,6 +226,17 @@ export interface RegexHit {
   matchText: string
 }
 
+/** The subset of ripgrep's --json event stream regexSearch consumes. */
+interface RgEvent {
+  type: string
+  data?: {
+    path?: { text?: string }
+    line_number?: number
+    lines?: { text?: string }
+    submatches?: Array<{ match?: { text?: string } }>
+  }
+}
+
 /** Regex search delegated to ripgrep over the raw JSONL source files. */
 export async function regexSearch(
   sessionsRoot: string,
@@ -249,29 +260,43 @@ export async function regexSearch(
 
   const proc = Bun.spawn(["rg", ...args], { stdout: "pipe", stderr: "ignore" })
   const hits: RegexHit[] = []
-  const text = await new Response(proc.stdout).text()
-  for (const line of text.split("\n")) {
-    if (hits.length >= limit) break
-    if (!line) continue
-    let event: any
+
+  const ingest = (line: string): void => {
+    let event: RgEvent
     try {
-      event = JSON.parse(line)
+      event = JSON.parse(line) as RgEvent
     } catch {
-      continue
+      return // rg --json emits only JSON lines; anything else is stream noise to skip
     }
-    if (event.type !== "match") continue
-    const path: string = event.data.path?.text ?? ""
+    if (event.type !== "match" || !event.data) return
+    const path = event.data.path?.text ?? ""
     const m = /([0-9a-f-]{36})\.jsonl$/.exec(path)
-    if (!m) continue
-    const sub = event.data.submatches?.[0]
-    const lineText: string = event.data.lines?.text ?? ""
+    if (!m) return
+    const lineText = event.data.lines?.text ?? ""
     hits.push({
       sessionId: m[1]!,
       path,
       lineNumber: event.data.line_number ?? 0,
-      matchText: sub?.match?.text ?? lineText.slice(0, 200),
+      matchText: event.data.submatches?.[0]?.match?.text ?? lineText.slice(0, 200),
     })
   }
+
+  // Stream events and stop ripgrep as soon as the limit is reached, instead
+  // of buffering its entire output.
+  const decoder = new TextDecoder()
+  let buf = ""
+  outer: for await (const chunk of proc.stdout) {
+    buf += decoder.decode(chunk, { stream: true })
+    let nl: number
+    while ((nl = buf.indexOf("\n")) !== -1) {
+      const line = buf.slice(0, nl)
+      buf = buf.slice(nl + 1)
+      if (line) ingest(line)
+      if (hits.length >= limit) break outer
+    }
+  }
+  if (hits.length >= limit) proc.kill()
+  else if (buf) ingest(buf)
   await proc.exited
-  return hits
+  return hits.slice(0, limit)
 }

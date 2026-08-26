@@ -1,4 +1,5 @@
 import type { Database } from "bun:sqlite"
+import { sessionWhere } from "./stats"
 import { toSummary, type SessionRow, type SessionSummary } from "./types"
 
 export interface ListFilters {
@@ -28,25 +29,8 @@ const SORT_SQL: Record<NonNullable<ListFilters["sort"]>, string> = {
 }
 
 export function listSessions(db: Database, filters: ListFilters = {}): SessionSummary[] {
-  const where: string[] = []
-  const params: (string | number)[] = []
-
-  if (filters.project) {
-    where.push("(cwd LIKE ? OR dir_slug LIKE ?)")
-    params.push(`%${filters.project}%`, `%${filters.project}%`)
-  }
-  if (filters.since !== undefined) {
-    where.push("updated_at >= ?")
-    params.push(filters.since)
-  }
-  if (filters.until !== undefined) {
-    where.push("created_at <= ?")
-    params.push(filters.until)
-  }
-  if (filters.model) {
-    where.push("model LIKE ?")
-    params.push(`%${filters.model}%`)
-  }
+  const { sql: whereSql, params } = sessionWhere(filters)
+  const where = [whereSql]
   if (filters.minCredits !== undefined) {
     where.push("credits >= ?")
     params.push(filters.minCredits)
@@ -55,26 +39,30 @@ export function listSessions(db: Database, filters: ListFilters = {}): SessionSu
     where.push("(input_tokens + output_tokens) >= ?")
     params.push(filters.minTokens)
   }
-  if (!filters.includeSubagents) where.push("is_subagent = 0")
-  if (!filters.includeExec) where.push("is_exec = 0")
 
   const sort = SORT_SQL[filters.sort ?? "updated"]
-  let sql = `SELECT * FROM sessions${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY ${sort} NULLS LAST`
+  let sql = `SELECT * FROM sessions WHERE ${where.join(" AND ")} ORDER BY ${sort} NULLS LAST`
 
-  const rows = db.query<SessionRow, (string | number)[]>(sql).all(...params)
-  let summaries = rows.map(toSummary)
-
-  if (filters.query) {
-    const scored = summaries
-      .map((s) => ({ s, score: fuzzyScore(filters.query!, s.title ?? "") }))
-      .filter((x) => x.score > 0)
-    scored.sort((a, b) => b.score - a.score)
-    summaries = scored.map((x) => x.s)
+  // Fuzzy title scoring needs every candidate; otherwise page in SQL.
+  if (!filters.query) {
+    sql += " LIMIT ? OFFSET ?"
+    params.push(filters.limit ?? -1, filters.offset ?? 0)
+    return db.query<SessionRow, (string | number)[]>(sql).all(...params).map(toSummary)
   }
 
+  const scored = db
+    .query<SessionRow, (string | number)[]>(sql)
+    .all(...params)
+    .map((row) => {
+      const s = toSummary(row)
+      return { s, score: fuzzyScore(filters.query!, s.title ?? "") }
+    })
+    .filter((x) => x.score > 0)
+  scored.sort((a, b) => b.score - a.score)
+
   const offset = filters.offset ?? 0
-  const limit = filters.limit ?? summaries.length
-  return summaries.slice(offset, offset + limit)
+  const limit = filters.limit ?? scored.length
+  return scored.slice(offset, offset + limit).map((x) => x.s)
 }
 
 export class SessionResolutionError extends Error {

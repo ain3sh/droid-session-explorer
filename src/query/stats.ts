@@ -23,7 +23,8 @@ export interface StatsFilters {
   includeExec?: boolean
 }
 
-function sessionWhere(
+/** Canonical WHERE builder for session-level filters; shared by all query modules. */
+export function sessionWhere(
   filters: StatsFilters,
   alias = "",
 ): { sql: string; params: (string | number)[] } {
@@ -85,6 +86,13 @@ export interface UsageLike {
 }
 
 const safeRate = (n: number, d: number): number => (d > 0 ? n / d : 0)
+
+/** Nearest-rank quantile over an ascending-sorted array; 0 when empty. */
+export function quantile(sorted: number[], q: number): number {
+  if (sorted.length === 0) return 0
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * q))
+  return sorted[idx]!
+}
 
 export function deriveUsageRates(row: UsageLike): UsageRates {
   const totalTokens = row.inputTokens + row.outputTokens
@@ -483,12 +491,6 @@ export function distribution(
     .all(...params)
     .map((r) => r.value)
 
-  const q = (pct: number): number => {
-    if (values.length === 0) return 0
-    const idx = Math.min(values.length - 1, Math.floor(values.length * pct))
-    return values[idx]!
-  }
-
   const min = values[0] ?? 0
   const max = values[values.length - 1] ?? 0
   const buckets: DistributionBucket[] = []
@@ -514,9 +516,9 @@ export function distribution(
     metric,
     count: values.length,
     min,
-    p50: q(0.5),
-    p90: q(0.9),
-    p95: q(0.95),
+    p50: quantile(values, 0.5),
+    p90: quantile(values, 0.9),
+    p95: quantile(values, 0.95),
     max,
     buckets,
   }

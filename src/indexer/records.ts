@@ -226,7 +226,7 @@ export function todoStateText(todos: TodoStateValue | undefined): string | null 
 
 /** Accepts ISO strings and epoch milliseconds; both appear in transcripts. */
 export function parseTimestamp(ts: string | number | undefined): number | null {
-  if (!ts) return null
+  if (ts == null) return null
   if (typeof ts === "number") return Number.isFinite(ts) ? ts : null
   const ms = Date.parse(ts)
   return Number.isNaN(ms) ? null : ms

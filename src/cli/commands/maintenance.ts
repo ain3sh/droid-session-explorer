@@ -126,16 +126,18 @@ export function registerMaintenanceCommands(program: Command, ctx: AppContext): 
     })
 }
 
-function normalizePrefix(p: string): string {
-  if (p.startsWith("~")) p = p.replace(/^~/, process.env.HOME ?? "~")
+const expandHome = (p: string): string =>
+  p.startsWith("~") ? p.replace(/^~/, process.env.HOME ?? "~") : p
+
+function normalizePrefix(raw: string): string {
+  const p = expandHome(raw)
   if (!isAbsolute(p)) fail("prefixes must be absolute paths")
   const r = resolve(p)
   return r === "/" ? "/" : r.replace(/\/+$/, "")
 }
 
-function resolveRoot(p: string): string {
-  if (p.startsWith("~")) p = p.replace(/^~/, process.env.HOME ?? "~")
-  return resolve(p)
+function resolveRoot(raw: string): string {
+  return resolve(expandHome(raw))
 }
 
 const hasPrefix = (path: string, prefix: string) =>
@@ -166,7 +168,13 @@ async function scanMigration(
 
   for (const name of dirs) {
     const dirPath = join(root, name)
-    if (!statSync(dirPath).isDirectory() || name === "attachments" || name === "cache") continue
+    let st
+    try {
+      st = statSync(dirPath)
+    } catch {
+      continue // dangling symlink or vanished entry
+    }
+    if (!st.isDirectory() || name === "attachments" || name === "cache") continue
 
     if (doDirs && (name === oldSlug || name.startsWith(oldSlug + "-"))) {
       const target = join(root, newSlug + name.slice(oldSlug.length))

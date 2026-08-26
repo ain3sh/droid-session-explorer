@@ -220,3 +220,14 @@ downgrade silently nukes the index. Only derived data is at risk
 
 Fixed here by `bun run build` so the dev link serves 0.3.1 too. If a real
 version-skew guard is ever wanted, `rebuildSchema()` is the place.
+
+## Bun 1.4 and the `latest` CI runtime (2026-08-26)
+
+Bun 1.4.0 (2026-08-20) landed between local dev (1.3.14) and CI: release.yml
+pins `bun-version: latest`, so any tag pushed after Aug 20 would have shipped
+SEA binaries compiled with a runtime never exercised locally. Decision: keep
+`latest` in CI (accepted risk, owner preference), but upgrade local Bun
+promptly after each Bun release and re-run the full verify matrix (test,
+tsc, build, compile, SEA CLI smoke, TUI smoke via tuistory) before tagging.
+Verified the whole matrix on 1.4.0; no regressions, TUI renders and exits
+cleanly in the compiled binary.

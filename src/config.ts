@@ -22,11 +22,8 @@ export interface DsxConfig {
 
 export function loadConfig(): DsxConfig {
   const home = homedir()
-  const factory = process.env.DROID_SESSION_ROOT
-    ? null
-    : join(home, ".factory")
   const sessionsRoot =
-    process.env.DROID_SESSION_ROOT ?? join(factory!, "sessions")
+    process.env.DROID_SESSION_ROOT ?? join(home, ".factory", "sessions")
   const cacheDir =
     process.env.DSX_CACHE_DIR ??
     join(process.env.XDG_CACHE_HOME ?? join(home, ".cache"), "dsx")
