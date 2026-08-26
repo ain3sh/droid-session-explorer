@@ -84,6 +84,9 @@ CREATE TABLE IF NOT EXISTS messages (
   PRIMARY KEY (session_id, seq)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_day ON messages(day, role);
+-- Covering index for the per-session daily activity CTE behind byDay/byDayGroup.
+CREATE INDEX IF NOT EXISTS idx_messages_activity ON messages(session_id, day)
+  WHERE role = 'assistant' AND day IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS blocks (
   id INTEGER PRIMARY KEY,

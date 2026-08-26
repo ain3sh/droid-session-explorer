@@ -46,7 +46,12 @@ export async function launchTui(ctx: AppContext): Promise<void> {
 
   // First paint never waits on index freshness: render whatever the index
   // has, refresh behind the status line, then re-query the mounted views.
-  void (async () => {
+  // The refresh then repeats on an interval so the TUI stays live while
+  // droid sessions keep appending.
+  let refreshing = false
+  const refresh = async () => {
+    if (refreshing) return
+    refreshing = true
     try {
       const result = await ctx.refresh((done, total) => {
         if (total > 5) state.setStatus(`indexing ${done}/${total} changed files...`)
@@ -60,10 +65,14 @@ export async function launchTui(ctx: AppContext): Promise<void> {
       }
     } finally {
       state.setStatus("")
+      refreshing = false
     }
-  })()
+  }
+  void refresh()
+  const liveRefresh = setInterval(() => void refresh(), 30_000)
 
   await exited
+  clearInterval(liveRefresh)
   if (resumeCommand) {
     console.log(pc.dim("run this to resume:"))
     console.log(resumeCommand)
