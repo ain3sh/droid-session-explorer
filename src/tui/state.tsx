@@ -24,6 +24,9 @@ export interface AppState {
   quit: (resumeCommand?: string) => void
   status: Accessor<string>
   setStatus: (s: string) => void
+  /** Bumped when the background refresh lands new data; query memos depend on it. */
+  dataVersion: Accessor<number>
+  bumpDataVersion: () => void
 }
 
 const Ctx = createContext<AppState>()
@@ -43,6 +46,7 @@ export function createAppState(
   const [inputActive, setInputActive] = createSignal(false)
   const [status, setStatus] = createSignal("")
   const [history, setHistory] = createSignal<View[]>([])
+  const [dataVersion, setDataVersion] = createSignal(0)
 
   // View switches are deferred a tick so the keypress that triggered the
   // switch is not also delivered to a freshly-mounted focused input.
@@ -78,6 +82,8 @@ export function createAppState(
     quit: onQuit,
     status,
     setStatus,
+    dataVersion,
+    bumpDataVersion: () => setDataVersion((v) => v + 1),
   }
 }
 

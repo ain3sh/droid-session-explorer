@@ -32,13 +32,14 @@ export function Insights() {
     return w ? parseWhen(w) : undefined
   })
 
-  const report = createMemo(() =>
-    insightsReport(app.ctx.db, {
+  const report = createMemo(() => {
+    app.dataVersion()
+    return insightsReport(app.ctx.db, {
       limit: 100,
       project: project() || undefined,
       since: since(),
-    }),
-  )
+    })
+  })
 
   let abort: AbortController | null = null
   onCleanup(() => abort?.abort())

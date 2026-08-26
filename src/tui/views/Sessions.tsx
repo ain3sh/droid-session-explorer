@@ -13,14 +13,15 @@ export function Sessions() {
 
   onMount(() => app.setInputActive(false))
 
-  const sessions = createMemo(() =>
-    listSessions(app.ctx.db, {
+  const sessions = createMemo(() => {
+    app.dataVersion()
+    return listSessions(app.ctx.db, {
       query: filter() || undefined,
       includeSubagents: true,
       includeExec: true,
       limit: 200,
-    }),
-  )
+    })
+  })
 
   const options = createMemo(() =>
     sessions().map((s) => ({

@@ -3,7 +3,6 @@ import { render, useKeyboard, useRenderer } from "@opentui/solid"
 import { Match, Show, Switch } from "solid-js"
 import pc from "picocolors"
 import type { AppContext } from "../context"
-import { ensureFresh } from "../cli/refresh"
 import { AppStateProvider, createAppState, useApp, type View } from "./state"
 import { T } from "./theme"
 import { Dashboard } from "./views/Dashboard"
@@ -23,8 +22,6 @@ const TABS: Array<{ key: string; view: View; label: string }> = [
 ]
 
 export async function launchTui(ctx: AppContext): Promise<void> {
-  await ensureFresh(ctx)
-
   let resumeCommand: string | undefined
   let resolveExit!: () => void
   const exited = new Promise<void>((resolve) => {
@@ -46,6 +43,25 @@ export async function launchTui(ctx: AppContext): Promise<void> {
     ),
     renderer,
   )
+
+  // First paint never waits on index freshness: render whatever the index
+  // has, refresh behind the status line, then re-query the mounted views.
+  void (async () => {
+    try {
+      const result = await ctx.refresh((done, total) => {
+        if (total > 5) state.setStatus(`indexing ${done}/${total} changed files...`)
+      })
+      if (
+        result.transcriptsIngested ||
+        result.settingsIngested ||
+        result.sessionsRemoved
+      ) {
+        state.bumpDataVersion()
+      }
+    } finally {
+      state.setStatus("")
+    }
+  })()
 
   await exited
   if (resumeCommand) {

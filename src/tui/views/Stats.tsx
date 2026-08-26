@@ -106,6 +106,7 @@ export function StatsView() {
   })
 
   const rows = createMemo<string[]>(() => {
+    app.dataVersion()
     const db = app.ctx.db
     const f = filters()
     switch (dim()) {

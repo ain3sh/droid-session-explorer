@@ -8,11 +8,16 @@ import { projectName } from "../../query/types"
 
 export function Dashboard() {
   const app = useApp()
-  const t = createMemo(() => totals(app.ctx.db))
-  const days = createMemo(() => byDay(app.ctx.db).slice(-60))
-  const models = createMemo(() => byGroup(app.ctx.db, "model").slice(0, 5))
-  const projects = createMemo(() => byGroup(app.ctx.db, "project").slice(0, 5))
-  const recent = createMemo(() => listSessions(app.ctx.db, { limit: 10 }))
+  const fresh = <T,>(query: () => T) =>
+    createMemo(() => {
+      app.dataVersion()
+      return query()
+    })
+  const t = fresh(() => totals(app.ctx.db))
+  const days = fresh(() => byDay(app.ctx.db).slice(-60))
+  const models = fresh(() => byGroup(app.ctx.db, "model").slice(0, 5))
+  const projects = fresh(() => byGroup(app.ctx.db, "project").slice(0, 5))
+  const recent = fresh(() => listSessions(app.ctx.db, { limit: 10 }))
 
   return (
     <box flexDirection="column" padding={1} gap={1}>
