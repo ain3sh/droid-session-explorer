@@ -6,6 +6,7 @@ import { registerMaintenanceCommands } from "./commands/maintenance"
 import { registerPapercutCommands } from "./commands/papercuts"
 import { registerSearchCommands } from "./commands/search"
 import { registerSessionCommands } from "./commands/sessions"
+import { registerSkillCommands } from "./commands/skill"
 import { registerStatsCommands } from "./commands/stats"
 
 export function buildProgram(ctx: AppContext): Command {
@@ -13,7 +14,7 @@ export function buildProgram(ctx: AppContext): Command {
     .description(
       "Droid Session Explorer: search, analyze, and navigate your Factory Droid sessions.\nRun with no arguments to open the TUI.",
     )
-    .version("0.3.4")
+    .version("0.3.5")
     .option("--no-refresh", "skip the index freshness check (fastest)")
 
   registerSessionCommands(program, ctx)
@@ -23,6 +24,7 @@ export function buildProgram(ctx: AppContext): Command {
   registerAskCommand(program, ctx)
   registerPapercutCommands(program, ctx)
   registerMaintenanceCommands(program, ctx)
+  registerSkillCommands(program, ctx)
 
   program
     .command("tui", { isDefault: false })

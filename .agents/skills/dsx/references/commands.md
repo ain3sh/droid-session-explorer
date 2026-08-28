@@ -127,6 +127,7 @@ dsx index [--rebuild] [--json]                  # force refresh / full re-ingest
 dsx migrate-path <oldPrefix> <newPrefix> [--apply]  # after moving a project dir
          [--cwd-only] [--dirs-only] [--rename-conflicts]
          [--backup-dir <dir>] [--root <dir>]
+dsx skill sync [--to <dir...>] [--apply]    # (re)install this skill; --apply reuses saved choice
 ```
 
 - `migrate-path` is a dry run unless `--apply` (which backs up first). `--root`

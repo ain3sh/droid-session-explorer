@@ -28,18 +28,25 @@ curl -fsSL https://raw.githubusercontent.com/ain3sh/droid-session-explorer/main/
 Pin a version with `DSX_VERSION=v0.3.0`, change destination with
 `DSX_INSTALL_DIR` (default `~/.local/bin`).
 
+The installer also offers to install the companion skill that teaches droids
+to mine their own session history (default `~/.agents/skills/dsx`, optionally
+`~/.factory/skills/dsx`). Your choice is remembered and the skill is
+refreshed automatically on every update. Non-interactive installs (agents,
+CI) never prompt; they apply the default and report it. Change your mind any
+time:
+
+```bash
+dsx skill sync                  # re-run the questionnaire
+dsx skill sync --to ~/.agents/skills   # or pick dirs directly
+```
+
 From source instead:
 
 ```bash
 bun install
 bun run build
-bun link        # puts `dsx` on PATH
-```
-
-Optional: install the companion skill for droids:
-
-```bash
-ln -s "$(pwd)/.agents/skills/dsx" ~/.factory/skills/dsx
+bun link            # puts `dsx` on PATH
+dsx skill sync      # optional: companion skill (embedded in the binary)
 ```
 
 ## Use

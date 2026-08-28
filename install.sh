@@ -40,6 +40,12 @@ main() {
 
   echo "installed $("$INSTALL_DIR/dsx" --version 2>/dev/null | head -1 || echo dsx) to $INSTALL_DIR/dsx"
 
+  # Offer/refresh the companion skill for droids. --apply reuses the saved
+  # choice silently; the questionnaire runs (via /dev/tty) only when there is
+  # no saved choice yet. Without a terminal (agent/CI installs) it never
+  # prompts: it installs the default (~/.agents/skills/dsx) and says so.
+  "$INSTALL_DIR/dsx" skill sync --apply || true
+
   case ":$PATH:" in
     *":$INSTALL_DIR:"*) ;;
     *)
