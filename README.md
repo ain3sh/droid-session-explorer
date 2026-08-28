@@ -28,16 +28,19 @@ curl -fsSL https://raw.githubusercontent.com/ain3sh/droid-session-explorer/main/
 Pin a version with `DSX_VERSION=v0.3.0`, change destination with
 `DSX_INSTALL_DIR` (default `~/.local/bin`).
 
-The installer also offers to install the companion skill that teaches droids
-to mine their own session history (default `~/.agents/skills/dsx`, optionally
-`~/.factory/skills/dsx`). Your choice is remembered and the skill is
-refreshed automatically on every update. Non-interactive installs (agents,
-CI) never prompt; they apply the default and report it. Change your mind any
-time:
+The installer also offers the companion assets that teach droids to mine
+their own session history: the dsx skill (default `~/.agents/skills/dsx`,
+optionally `~/.factory/skills/dsx`) and a small marker-fenced guidance block
+in your `AGENTS.md` (papercut logging + failure recovery; default
+`~/.agents/AGENTS.md`, optionally `~/.factory/AGENTS.md`). Your choices are
+remembered and both assets refresh automatically on every update. You can
+move the AGENTS.md block anywhere in the file; updates replace it in place,
+and hand-edits inside the block are preserved (overwrite with
+`dsx sync --force`). Non-interactive installs (agents, CI) never prompt; they
+apply the defaults and report it. Change your mind any time:
 
 ```bash
-dsx skill sync                  # re-run the questionnaire
-dsx skill sync --to ~/.agents/skills   # or pick dirs directly
+dsx sync            # re-run the questionnaire (deselecting removes the asset)
 ```
 
 From source instead:
@@ -46,7 +49,7 @@ From source instead:
 bun install
 bun run build
 bun link            # puts `dsx` on PATH
-dsx skill sync      # optional: companion skill (embedded in the binary)
+dsx sync            # optional: companion assets (embedded in the binary)
 ```
 
 ## Use

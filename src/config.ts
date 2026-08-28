@@ -10,8 +10,8 @@ export interface DsxConfig {
   dbPath: string
   /** Durable append-only papercut log */
   papercutsPath: string
-  /** Cached companion-skill install choices (`dsx skill sync`) */
-  skillPrefsPath: string
+  /** Cached companion-asset install choices (`dsx sync`) */
+  syncPrefsPath: string
   /** Max bytes of a single content block stored for FTS (full content always read from source) */
   maxIndexedBlockBytes: number
   /** Model used for `dsx insights --deep` sub-droid runs */
@@ -38,7 +38,7 @@ export function loadConfig(): DsxConfig {
     dbPath: process.env.DSX_DB_PATH ?? join(cacheDir, "index.db"),
     papercutsPath:
       process.env.DSX_PAPERCUTS_PATH ?? join(dataDir, "papercuts.jsonl"),
-    skillPrefsPath: join(dataDir, "skill-prefs.json"),
+    syncPrefsPath: join(dataDir, "sync-prefs.json"),
     maxIndexedBlockBytes: 8192,
     insightsModel: process.env.DSX_INSIGHTS_MODEL ?? "kimi-k2.6",
     papercutModel: process.env.DSX_PAPERCUT_MODEL ?? "gpt-5.6-luna",

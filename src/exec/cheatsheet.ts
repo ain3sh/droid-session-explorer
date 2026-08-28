@@ -1,6 +1,6 @@
 // The skill reference files double as the sub-droid cheatsheet; they are
-// embedded at build time via src/skill/embedded.ts.
-import { SKILL_FILES } from "../skill/embedded"
+// embedded at build time via src/sync/embedded.ts.
+import { SKILL_FILES } from "../sync/embedded"
 
 export const DSX_CHEATSHEET = `
 You have the \`dsx\` CLI available. It indexes every local droid session
