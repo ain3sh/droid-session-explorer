@@ -125,6 +125,11 @@ CREATE TABLE IF NOT EXISTS history (
 export function openDb(dbPath: string): Database {
   if (dbPath !== ":memory:") mkdirSync(dirname(dbPath), { recursive: true })
   const db = new Database(dbPath, { create: true })
+  // Several dsx processes share this file (a live TUI's background refresh vs
+  // a freshly launched command); bun:sqlite defaults busy_timeout to 0, which
+  // turns any overlap into an instant SQLITE_BUSY crash. Set it before any
+  // statement that can write, journal_mode included.
+  db.exec("PRAGMA busy_timeout = 5000")
   db.exec("PRAGMA journal_mode = WAL")
   db.exec("PRAGMA synchronous = NORMAL")
   db.exec("PRAGMA foreign_keys = ON")
@@ -144,10 +149,12 @@ function migrate(db: Database): void {
         "SELECT value FROM meta WHERE key='schema_version'",
       )
       .get()
-    if (version && Number(version.value) !== SCHEMA_VERSION) {
-      rebuildSchema(db)
-      return
-    }
+    // Schema is current: write nothing, so concurrent dsx processes never
+    // contend on the index at startup.
+    if (version && Number(version.value) === SCHEMA_VERSION) return
+    // Unknown or stale version: drop and rebuild from source.
+    rebuildSchema(db)
+    return
   }
   db.exec(SCHEMA)
   db.query(
