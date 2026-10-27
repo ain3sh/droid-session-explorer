@@ -85,13 +85,19 @@ export function renderTable<T>(rows: T[], columns: Column<T>[]): string {
   return [header, ...body].join("\n")
 }
 
+/**
+ * Write one line of data to stdout. Not console.log: once process.stdout
+ * exists (picocolors creates it on import), Bun's console.log makes a single
+ * write to a non-blocking pipe and drops whatever the pipe buffer refuses.
+ * https://github.com/oven-sh/bun/issues/36419
+ */
+export function println(text: string): void {
+  process.stdout.write(`${text}\n`)
+}
+
 /** Print data as JSON (stable contract) or via a human renderer. */
 export function output(json: boolean, data: unknown, human: () => string): void {
-  if (json) {
-    console.log(JSON.stringify(data, null, 2))
-  } else {
-    console.log(human())
-  }
+  println(json ? JSON.stringify(data, null, 2) : human())
 }
 
 export function fail(message: string): never {

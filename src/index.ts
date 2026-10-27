@@ -11,6 +11,11 @@ if (process.argv.length <= 2) {
   // mid-transaction kill rolls back cleanly under WAL and the next run redoes it.
   process.exit(0)
 } else {
+  // A reader that closes early (`dsx export <id> | head`) is normal, not an error.
+  process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+    if (error.code === "EPIPE") process.exit(0)
+    throw error
+  })
   const program = buildProgram(ctx)
   await program.parseAsync()
 }

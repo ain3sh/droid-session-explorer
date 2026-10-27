@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs"
 import pc from "picocolors"
 import type { AppContext } from "../../context"
 import { loadTranscript, type Transcript, type TranscriptEntry } from "../../query/transcript"
-import { fail, isoDate } from "../format"
+import { fail, isoDate, println } from "../format"
 import { ensureFresh } from "../refresh"
 import { resolveOrFail } from "./sessions"
 
@@ -34,7 +34,7 @@ export function registerExportCommand(program: Command, ctx: AppContext): void {
         writeFileSync(opts.out, rendered)
         console.error(pc.dim(`wrote ${opts.out}`))
       } else {
-        console.log(rendered)
+        println(rendered)
       }
     })
 }

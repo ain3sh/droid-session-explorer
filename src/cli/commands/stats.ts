@@ -30,6 +30,7 @@ import {
   humanTokens,
   output,
   parseWhen,
+  println,
   renderTable,
   sparkline,
 } from "../format"
@@ -263,7 +264,7 @@ export function registerStatsCommands(program: Command, ctx: AppContext): void {
             onDelta: opts.json ? undefined : (t) => process.stdout.write(t),
             onStatus: (s) => console.error(pc.dim(`dsx: ${s}`)),
           })
-          if (opts.json) console.log(JSON.stringify(result, null, 2))
+          if (opts.json) println(JSON.stringify(result, null, 2))
           else process.stdout.write("\n")
         } catch (e) {
           fail(e instanceof Error ? e.message : String(e))
